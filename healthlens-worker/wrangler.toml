@@ -6,5 +6,5 @@ compatibility_flags = ["nodejs_compat"]
 [observability]
 enabled = false
 
-[[ai]]
+[ai]
 binding = "AI"
