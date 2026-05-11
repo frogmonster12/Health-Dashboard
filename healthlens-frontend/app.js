@@ -1,7 +1,7 @@
 // ── Config ──────────────────────────────────────────────────────────────────
 // Update this URL after deploying your Cloudflare Worker.
 // Example: 'https://healthlens-worker.your-subdomain.workers.dev'
-const WORKER_URL = 'https://healthlens-worker.YOUR_SUBDOMAIN.workers.dev';
+const WORKER_URL = 'https://healthlens-worker.jhs-amarillo.workers.dev';
 
 const PDFJS_WORKER_SRC =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
