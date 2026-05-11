@@ -905,7 +905,76 @@ function init() {
   document.addEventListener('dragover', (e) => e.preventDefault());
   document.addEventListener('drop',     (e) => e.preventDefault());
 
-  // Keyboard shortcuts: P = privacy, E = export
+  // ── Global error reporting ────────────────────────────────────────────────
+  // Unhandled JS errors are sent to the Worker /log endpoint and streamed
+  // in real-time via: cd healthlens-worker && npx wrangler tail
+  function sendErrorLog(data) {
+    try {
+      navigator.sendBeacon(
+        `${WORKER_URL}/log`,
+        new Blob([JSON.stringify({ ...data, ts: new Date().toISOString() })],
+                 { type: 'application/json' })
+      );
+    } catch (_) { /* never throw from an error handler */ }
+  }
+
+  window.onerror = (message, source, line, col, error) => {
+    sendErrorLog({ type: 'unhandled-error', message: String(message).slice(0, 500),
+      source: String(source ?? '').slice(0, 200), line, col,
+      stack: String(error?.stack ?? '').slice(0, 600) });
+  };
+
+  window.onunhandledrejection = (e) => {
+    sendErrorLog({ type: 'unhandled-rejection',
+      message: String(e.reason?.message ?? e.reason ?? '').slice(0, 500),
+      stack:   String(e.reason?.stack   ?? '').slice(0, 600) });
+  };
+
+  // ── Feedback button + modal ───────────────────────────────────────────────
+  function openFeedbackModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="fb-title">
+        <h3 class="modal-title" id="fb-title">Send feedback</h3>
+        <div class="fb-type-row">
+          <label class="fb-type-label"><input type="radio" name="fbType" value="bug" checked> Bug report</label>
+          <label class="fb-type-label"><input type="radio" name="fbType" value="suggestion"> Suggestion</label>
+        </div>
+        <textarea class="fb-text" placeholder="Describe the bug or suggestion in as much detail as you can…" rows="5"></textarea>
+        <div class="modal-actions">
+          <button class="modal-btn modal-cancel-btn" id="fbCancel" type="button">Cancel</button>
+          <button class="modal-btn modal-confirm-btn" id="fbSubmit" type="button">Open in email →</button>
+        </div>
+        <p class="fb-note">Tapping Send will open your email client. Nothing is sent automatically.</p>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const ta = overlay.querySelector('.fb-text');
+    ta.focus();
+
+    overlay.querySelector('#fbCancel').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    overlay.querySelector('#fbSubmit').addEventListener('click', () => {
+      const type = overlay.querySelector('[name="fbType"]:checked')?.value ?? 'bug';
+      const msg  = ta.value.trim();
+      if (!msg) { ta.focus(); return; }
+      const subject = encodeURIComponent(`HealthLens – ${type === 'bug' ? 'Bug Report' : 'Suggestion'}`);
+      const body    = encodeURIComponent(`Type: ${type === 'bug' ? 'Bug' : 'Suggestion'}\n\n${msg}\n\n---\nSent from HealthLens`);
+      window.open(`mailto:jhs.amarillo@gmail.com?subject=${subject}&body=${body}`);
+      overlay.remove();
+    });
+  }
+
+  const fab = document.createElement('button');
+  fab.className = 'feedback-fab no-print';
+  fab.setAttribute('aria-label', 'Send feedback');
+  fab.textContent = 'Feedback';
+  fab.addEventListener('click', openFeedbackModal);
+  document.body.appendChild(fab);
+
+  // ── Keyboard shortcuts: P = privacy, E = export
   document.addEventListener('keydown', (e) => {
     if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
     if (e.key === 'p' || e.key === 'P') document.getElementById('privacyToggle')?.click();

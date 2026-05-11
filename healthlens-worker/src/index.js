@@ -1,7 +1,5 @@
 const ALLOWED_ORIGINS = [
-  "https://healthlens.pages.dev",
-  // add your custom Pages domain here once known, e.g.:
-  // "https://healthlens.yourdomain.com",
+  "https://health-dashboard.jhs-amarillo.workers.dev",
 ];
 
 // During local dev, also allow localhost
@@ -34,6 +32,16 @@ const REDACT_FIELDS = [
   "physicianName",
   "facilityName",
 ];
+
+// ─── LOGGING ─────────────────────────────────────────────────────────────────
+// Stream live with: cd healthlens-worker && npx wrangler tail
+// Logs never contain document text or patient data — only metadata.
+
+function log(tag, msg, extra = {}) {
+  const parts = [`[HL:${tag}]`, msg];
+  if (Object.keys(extra).length) parts.push(JSON.stringify(extra));
+  console.log(parts.join(" "));
+}
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
 
@@ -236,26 +244,37 @@ async function handleAnalyze(request, env, origin) {
   try {
     body = await request.json();
   } catch (_) {
+    log("analyze", "rejected: bad JSON body");
     return errorResponse("Request body must be valid JSON.", 400, origin);
   }
 
   const { documentType, textContent, fileName } = body ?? {};
 
   if (!documentType || typeof documentType !== "string") {
+    log("analyze", "rejected: missing documentType");
     return errorResponse("Missing or invalid 'documentType'.", 400, origin);
   }
   if (!textContent || typeof textContent !== "string" || textContent.trim().length === 0) {
+    log("analyze", "rejected: missing textContent", { docType: documentType });
     return errorResponse("Missing or empty 'textContent'.", 400, origin);
   }
 
   const truncated = textContent.slice(0, MAX_TEXT_CHARS);
-  const wasТruncated = textContent.length > MAX_TEXT_CHARS;
+  const wasTruncated = textContent.length > MAX_TEXT_CHARS;
+
+  log("analyze", "start", {
+    docType: documentType,
+    file: fileName ?? "(unnamed)",
+    textLen: truncated.length,
+    truncated: wasTruncated,
+  });
 
   // First attempt
   let raw;
   try {
     raw = await callAI(env, buildPrompt(documentType, truncated));
   } catch (err) {
+    log("analyze", "AI call failed (attempt 1)", { error: err.message });
     return errorResponse("AI service unavailable. Please try again.", 503, origin);
   }
 
@@ -263,16 +282,19 @@ async function handleAnalyze(request, env, origin) {
 
   // Retry once with stricter prompt if first parse failed
   if (!parsed) {
+    log("analyze", "attempt 1 parse failed — retrying with strict prompt");
     let retryRaw;
     try {
       retryRaw = await callAI(env, buildStrictPrompt(documentType, truncated));
     } catch (err) {
+      log("analyze", "AI call failed (attempt 2)", { error: err.message });
       return errorResponse("AI service unavailable on retry.", 503, origin);
     }
     parsed = extractJSON(retryRaw);
   }
 
   if (!parsed) {
+    log("analyze", "FAILED: no valid JSON after 2 attempts", { docType: documentType });
     return errorResponse(
       "Could not extract structured data from this document. The AI model did not return valid JSON after two attempts.",
       422,
@@ -282,7 +304,14 @@ async function handleAnalyze(request, env, origin) {
 
   const normalized = normalizeDocument(parsed, documentType);
 
-  if (wasТruncated) {
+  log("analyze", "success", {
+    markers: normalized.markers.length,
+    confidence: normalized.extractionConfidence,
+    warnings: normalized.parseWarnings.length,
+    truncated: wasTruncated,
+  });
+
+  if (wasTruncated) {
     normalized.parseWarnings.push(
       `Document was truncated to ${MAX_TEXT_CHARS} characters before analysis.`
     );
@@ -317,7 +346,33 @@ async function handleRedact(request, env, origin) {
     }
   }
 
+  log("redact", "done", { fields: REDACT_FIELDS.length });
   return jsonResponse({ ok: true, data: redacted }, 200, origin);
+}
+
+// ─── ROUTE: POST /log ─────────────────────────────────────────────────────────
+// Receives unhandled JS errors from the frontend.
+// View with: npx wrangler tail
+
+async function handleLog(request, env, origin) {
+  let body;
+  try { body = await request.json(); } catch (_) { body = {}; }
+
+  // Cap field lengths — never store, just log
+  const type    = String(body.type    ?? "error"  ).slice(0, 60);
+  const message = String(body.message ?? "(none)"  ).slice(0, 500);
+  const source  = String(body.source  ?? ""        ).slice(0, 200);
+  const stack   = String(body.stack   ?? ""        ).slice(0, 600);
+
+  log("frontend", type, {
+    message,
+    source: source || undefined,
+    stack:  stack  || undefined,
+    line:   body.line ?? undefined,
+    ts:     body.ts   ?? undefined,
+  });
+
+  return new Response(null, { status: 204, headers: corsHeaders(origin) });
 }
 
 // ─── MAIN HANDLER ────────────────────────────────────────────────────────────
@@ -346,6 +401,11 @@ export default {
       return handleRedact(request, env, origin);
     }
 
+    if (path === "/log") {
+      return handleLog(request, env, origin);
+    }
+
+    log("router", `404 ${path}`);
     return errorResponse("Not found.", 404, origin);
   },
 };
