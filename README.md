@@ -82,8 +82,6 @@ In `healthlens-frontend/app.js`, set the Worker URL:
 const WORKER_URL = 'https://healthlens-worker.your-account.workers.dev';
 ```
 
-And update the footer link in `healthlens-frontend/index.html` to point at your public GitHub repo.
-
 ### 3. Deploy the frontend via Cloudflare Pages
 
 1. The repo is already at https://github.com/frogmonster12/Health-Dashboard
