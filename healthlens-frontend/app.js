@@ -780,12 +780,6 @@ function wireUploadView() {
     addFiles(Array.from(e.dataTransfer.files));
   });
 
-  // File input
-  fileInput.addEventListener('change', () => {
-    addFiles(Array.from(fileInput.files));
-    fileInput.value = ''; // allow re-selecting the same file
-  });
-
   // File list: delegated events (remove, retry, doc-type change)
   fileList.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
@@ -898,6 +892,14 @@ function init() {
   fileInput.accept  = '.pdf,image/*';
   fileInput.style.display = 'none';
   document.body.appendChild(fileInput);
+
+  // Wire fileInput ONCE here — wireUploadView() re-runs on every back/forward
+  // transition, so putting this listener there would stack duplicates and cause
+  // the "already in list" false-positive on re-upload.
+  fileInput.addEventListener('change', () => {
+    addFiles(Array.from(fileInput.files));
+    fileInput.value = '';
+  });
 
   // Block accidental browser navigation when dropping outside the zone
   document.addEventListener('dragover', (e) => e.preventDefault());

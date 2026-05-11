@@ -31,6 +31,50 @@ const HORMONE_SET = new Set([
   'dhea', 'dhea-s', 'dhea sulfate',
   'progesterone',
 ]);
+// Inline Chart.js plugin: draws teal dashed vertical lines + dosage labels on hormone charts
+const DOSAGE_LINES_PLUGIN = {
+  id: 'dosageLines',
+  afterDraw(chart, _, opts) {
+    const doses = opts?.doses;
+    if (!doses?.length) return;
+    const { ctx, data, chartArea, scales } = chart;
+    if (!chartArea || !scales.x) return;
+
+    ctx.save();
+    for (const { date, testDose, aiDose } of doses) {
+      const idx = data.labels.indexOf(date);
+      if (idx < 0) continue;
+      const x = scales.x.getPixelForValue(idx);
+
+      // Dashed vertical line
+      ctx.strokeStyle = 'rgba(20,184,166,.5)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Labels drawn above the chart area (into the padding space)
+      ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      let y = chartArea.top - 5;
+      if (aiDose) {
+        ctx.fillStyle = 'rgba(148,163,184,.95)';
+        ctx.fillText(`AI: ${aiDose}`, x, y);
+        y -= 14;
+      }
+      if (testDose) {
+        ctx.fillStyle = 'rgba(255,255,255,.9)';
+        ctx.fillText(`Test: ${testDose}`, x, y);
+      }
+    }
+    ctx.restore();
+  }
+};
+
 const BODY_COMP_TYPES  = new Set(['dexa', 'scale']);
 const IMAGING_TYPES    = new Set(['ctca']);
 const PALETTE          = ['#14b8a6', '#3b82f6', '#f59e0b', '#a855f7', '#ef4444', '#22c55e', '#f97316'];
@@ -74,7 +118,10 @@ function getMarkerReadings(panels, nameSet) {
         map.set(n, { name: m.name, unit: m.unit ?? '', refLow: null, refHigh: null, readings: [] });
       }
       const acc = map.get(n);
-      acc.readings.push({ date: panel.drawDate ?? null, value: m.value });
+      // Deduplicate: skip if this exact (date, value) already recorded from this panel
+      if (!acc.readings.some(r => r.date === (panel.drawDate ?? null) && r.value === m.value)) {
+        acc.readings.push({ date: panel.drawDate ?? null, value: m.value });
+      }
       if (m.refLow  != null) acc.refLow  = m.refLow;
       if (m.refHigh != null) acc.refHigh = m.refHigh;
     }
@@ -532,34 +579,29 @@ function initHormonesCharts(panels) {
   const readings = getMarkerReadings(panels, HORMONE_SET);
   const test = findSeries(readings, 'total testosterone', 'testosterone');
   const e2   = findSeries(readings, 'estradiol', 'e2');
+  const doses = getDosageInfo();
 
-  // Build subtitle from user-entered dosage protocol
-  const doses  = getDosageInfo();
-  const latest = doses.at(-1);
-  const subtitle = [
-    latest?.testDose ? `Test: ${latest.testDose}` : null,
-    latest?.aiDose   ? `AI: ${latest.aiDose}`     : null,
-  ].filter(Boolean).join('   ·   ');
-
-  function withSubtitle(cfg) {
-    if (!subtitle) return cfg;
-    cfg.options.plugins.subtitle = {
-      display: true,
-      text: subtitle,
-      color: '#64748b',
-      font: { size: 10, style: 'italic' },
-      padding: { top: 2, bottom: 8 },
-    };
+  // Add vertical dosage lines + top padding to make room for the labels
+  function withDosageLines(cfg) {
+    if (!doses.length) return cfg;
+    cfg.options.layout = cfg.options.layout ?? {};
+    cfg.options.layout.padding = { ...(cfg.options.layout.padding ?? {}), top: 36 };
+    cfg.options.plugins = cfg.options.plugins ?? {};
+    cfg.options.plugins.dosageLines = { doses };
     return cfg;
   }
 
   if (test && e2) {
-    initChart('chart-hormone-main', withSubtitle(dualAxisConfig(test, e2)));
+    const cfg = withDosageLines(dualAxisConfig(test, e2));
+    cfg.plugins = [DOSAGE_LINES_PLUGIN];
+    initChart('chart-hormone-main', cfg);
   } else if (test || e2) {
     const s = test ?? e2;
-    initChart('chart-hormone-main', withSubtitle(
+    const cfg = withDosageLines(
       getChartConfig(s.name, s.readings, { refLow: s.refLow, refHigh: s.refHigh, unit: s.unit })
-    ));
+    );
+    cfg.plugins = [DOSAGE_LINES_PLUGIN];
+    initChart('chart-hormone-main', cfg);
   }
 
   const MAIN_KEYS = ['testosterone', 'estradiol', 'e2'];

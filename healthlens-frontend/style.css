@@ -873,8 +873,10 @@ body.drag-active { user-select: none; }
 }
 [data-tip]:hover::after { opacity: 1; }
 
-/* Privacy tooltip is longer — allow wrapping */
+/* Privacy tooltip: wider, wrapping, and positioned BELOW the button */
 .privacy-btn[data-tip]::after {
+  bottom: auto;
+  top: calc(100% + 7px);
   white-space: normal;
   max-width: 210px;
   text-align: center;
@@ -931,15 +933,15 @@ body.drag-active { user-select: none; }
   padding: 10px 14px;
   margin-bottom: 16px;
   font-size: .8125rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);       /* light grey for generic text */
 }
 .dose-summary-label {
   font-weight: 600;
-  color: var(--teal-dark);
+  color: var(--teal);             /* bright teal for "Protocol on file:" */
   flex-shrink: 0;
 }
-.dose-entry { display: flex; gap: 5px; flex-wrap: wrap; }
-.dose-entry b { color: var(--text-primary); font-weight: 600; }
+.dose-entry { display: flex; gap: 5px; flex-wrap: wrap; color: #94a3b8; }
+.dose-entry b { color: #fff; font-weight: 600; } /* white for the actual values */
 
 /* ── "Load sample data" button ───────────────────────────────────────────────── */
 .sample-btn {
