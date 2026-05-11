@@ -31,7 +31,7 @@ const HORMONE_SET = new Set([
   'dhea', 'dhea-s', 'dhea sulfate',
   'progesterone',
 ]);
-// Inline Chart.js plugin: draws teal dashed vertical lines + dosage labels on hormone charts
+// Inline Chart.js plugin: draws teal dashed vertical lines + dosage label boxes above them
 const DOSAGE_LINES_PLUGIN = {
   id: 'dosageLines',
   afterDraw(chart, _, opts) {
@@ -41,13 +41,46 @@ const DOSAGE_LINES_PLUGIN = {
     if (!chartArea || !scales.x) return;
 
     ctx.save();
+    ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+
     for (const { date, testDose, aiDose } of doses) {
       const idx = data.labels.indexOf(date);
       if (idx < 0) continue;
       const x = scales.x.getPixelForValue(idx);
 
-      // Dashed vertical line
-      ctx.strokeStyle = 'rgba(20,184,166,.5)';
+      // Build label lines (Test first, AI second)
+      const lines = [];
+      if (testDose) lines.push({ text: `Test: ${testDose}`, color: 'rgba(255,255,255,.92)' });
+      if (aiDose)   lines.push({ text: `AI: ${aiDose}`,     color: 'rgba(148,163,184,.95)' });
+
+      if (lines.length) {
+        const lineH  = 14;
+        const padX   = 6, padY = 4;
+        const maxW   = Math.max(...lines.map(l => ctx.measureText(l.text).width));
+        const boxW   = maxW + padX * 2;
+        const boxH   = lines.length * lineH + padY * 2;
+        // Position the label box in the padding zone, just above chartArea.top
+        const boxTop = chartArea.top - boxH - 3;
+
+        // Dark background pill for readability
+        ctx.fillStyle = 'rgba(11,26,46,.85)';
+        ctx.fillRect(x - boxW / 2, boxTop, boxW, boxH);
+
+        // Teal left accent on the box
+        ctx.fillStyle = 'rgba(20,184,166,.7)';
+        ctx.fillRect(x - boxW / 2, boxTop, 2, boxH);
+
+        // Text lines
+        lines.forEach((line, i) => {
+          ctx.fillStyle = line.color;
+          ctx.fillText(line.text, x, boxTop + padY + i * lineH);
+        });
+      }
+
+      // Dashed vertical line from chartArea.top to bottom
+      ctx.strokeStyle = 'rgba(20,184,166,.45)';
       ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
@@ -55,22 +88,8 @@ const DOSAGE_LINES_PLUGIN = {
       ctx.lineTo(x, chartArea.bottom);
       ctx.stroke();
       ctx.setLineDash([]);
-
-      // Labels drawn above the chart area (into the padding space)
-      ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      let y = chartArea.top - 5;
-      if (aiDose) {
-        ctx.fillStyle = 'rgba(148,163,184,.95)';
-        ctx.fillText(`AI: ${aiDose}`, x, y);
-        y -= 14;
-      }
-      if (testDose) {
-        ctx.fillStyle = 'rgba(255,255,255,.9)';
-        ctx.fillText(`Test: ${testDose}`, x, y);
-      }
     }
+
     ctx.restore();
   }
 };
@@ -152,17 +171,18 @@ function detectTabs(panels) {
   return tabs;
 }
 
-// Collect user-entered dosage info across all hormone entries
+// Collect user-entered dosage info — deduped by (date + testDose + aiDose)
 function getDosageInfo() {
   if (typeof state === 'undefined') return [];
+  const seen  = new Set();
   const doses = [];
   for (const entry of state.files.values()) {
     if (entry.docType === 'hormones' && (entry.testDose || entry.aiDose)) {
-      doses.push({
-        date: entry.result?.drawDate ?? null,
-        testDose: entry.testDose ?? '',
-        aiDose:   entry.aiDose   ?? '',
-      });
+      const date = entry.result?.drawDate ?? null;
+      const key  = `${date}|${entry.testDose ?? ''}|${entry.aiDose ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      doses.push({ date, testDose: entry.testDose ?? '', aiDose: entry.aiDose ?? '' });
     }
   }
   return doses.sort((a, b) => !a.date ? 1 : !b.date ? -1 : a.date.localeCompare(b.date));
