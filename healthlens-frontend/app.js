@@ -15,6 +15,7 @@ const DOC_TYPES = [
   { value: '',            label: 'Select document type…' },
   { value: 'blood_work',  label: 'Blood Work / CMP' },
   { value: 'lipid_panel', label: 'Lipid Panel' },
+  { value: 'hormones',    label: 'Testosterone / E2' },
   { value: 'dexa',        label: 'DEXA Scan' },
   { value: 'scale',       label: 'Scale / Weight Log' },
   { value: 'ctca',        label: 'CTCA / Imaging' },
@@ -226,6 +227,14 @@ const MANUAL_FIELDS = {
     {name:'CAC Score', unit:'',  refLow:null, refHigh:0  },
     {name:'LVEF',      unit:'%', refLow:55,   refHigh:null},
   ],
+  hormones: [
+    {name:'Total Testosterone', unit:'ng/dL',  refLow:300, refHigh:1000},
+    {name:'Free Testosterone',  unit:'pg/mL',  refLow:5,   refHigh:30  },
+    {name:'Estradiol (E2)',     unit:'pg/mL',  refLow:10,  refHigh:40  },
+    {name:'SHBG',               unit:'nmol/L', refLow:10,  refHigh:57  },
+    {name:'LH',                 unit:'mIU/mL', refLow:1.7, refHigh:8.6 },
+    {name:'FSH',                unit:'mIU/mL', refLow:1.5, refHigh:12.4},
+  ],
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -416,6 +425,7 @@ function addFiles(fileList) {
       id, file, docType: '', phase: 'extracting',
       errorMsg: null, errorPhase: null,
       text: null, base64: null, result: null, showManual: false,
+      testDose: '', aiDose: '',
     });
     existing.add(dedupKey(file));
     added++;
@@ -481,9 +491,10 @@ function cardHTML(entry) {
       <button class="retry-btn" data-action="retry" data-id="${esc(entry.id)}">Retry</button>
       ${canManual ? `<button class="manual-btn" data-action="manual" data-id="${esc(entry.id)}">Enter manually</button>` : ''}`;
   } else {
-    bottomContent = `<select class="doc-type-select" data-action="doctype" data-id="${esc(entry.id)}"${selectOff ? ' disabled' : ''}>
-         ${options}
-       </select>`;
+    const sel = `<select class="doc-type-select" data-action="doctype" data-id="${esc(entry.id)}"${selectOff ? ' disabled' : ''}>${options}</select>`;
+    bottomContent = entry.docType === 'hormones'
+      ? sel + doseFieldsHTML(entry)
+      : sel;
   }
 
   return `
@@ -497,7 +508,7 @@ function cardHTML(entry) {
            aria-label="Remove ${esc(entry.file.name)}" title="Remove">×</button>`
       : ''}
   </div>
-  <div class="card-bottom">
+  <div class="card-bottom${entry.docType === 'hormones' && !entry.showManual && entry.phase !== 'error' ? ' card-bottom--col' : ''}">
     ${bottomContent}
   </div>
 </div>`;
@@ -587,6 +598,23 @@ function showDropError(msg) {
 }
 
 // ── Render upload view (called once on init) ──────────────────────────────────
+// ── Hormone dosage fields ─────────────────────────────────────────────────────
+function doseFieldsHTML(entry) {
+  return `
+<div class="dose-row">
+  <div class="dose-field">
+    <span class="dose-label">Test dosage</span>
+    <input class="dose-input" type="text" data-action="testdose" data-id="${esc(entry.id)}"
+           value="${esc(entry.testDose ?? '')}" placeholder="e.g. 200mg Test Cyp / week" />
+  </div>
+  <div class="dose-field">
+    <span class="dose-label">AI (aromatase inhibitor) dosage</span>
+    <input class="dose-input" type="text" data-action="aidose" data-id="${esc(entry.id)}"
+           value="${esc(entry.aiDose ?? '')}" placeholder="e.g. 0.5mg Anastrozole / week" />
+  </div>
+</div>`;
+}
+
 // ── Manual entry form ─────────────────────────────────────────────────────────
 function manualFormHTML(entry) {
   const fields = MANUAL_FIELDS[entry.docType] ?? MANUAL_FIELDS.blood_work;
@@ -774,10 +802,24 @@ function wireUploadView() {
   });
   fileList.addEventListener('change', (e) => {
     const sel = e.target.closest('[data-action="doctype"]');
-    if (!sel) return;
-    const entry = state.files.get(sel.dataset.id);
-    if (entry) entry.docType = sel.value;
-    updateAnalyzeBtn();
+    if (sel) {
+      const entry = state.files.get(sel.dataset.id);
+      if (entry) entry.docType = sel.value;
+      updateAnalyzeBtn();
+      updateCard(sel.dataset.id); // re-render to show/hide dose fields
+      return;
+    }
+    const testInput = e.target.closest('[data-action="testdose"]');
+    if (testInput) {
+      const entry = state.files.get(testInput.dataset.id);
+      if (entry) entry.testDose = testInput.value;
+      return;
+    }
+    const aiInput = e.target.closest('[data-action="aidose"]');
+    if (aiInput) {
+      const entry = state.files.get(aiInput.dataset.id);
+      if (entry) entry.aiDose = aiInput.value;
+    }
   });
 
   // Analyze button

@@ -22,6 +22,15 @@ const HEPATIC_SET = new Set([
   'bilirubin', 'total bilirubin', 'direct bilirubin', 'indirect bilirubin',
   'ggt', 'gamma-gt', 'albumin', 'total protein', 'globulin',
 ]);
+const HORMONE_SET = new Set([
+  'testosterone', 'total testosterone', 'free testosterone', 'serum testosterone',
+  'estradiol', 'estradiol (e2)', 'e2', 'estrogen',
+  'shbg', 'sex hormone binding globulin',
+  'lh', 'luteinizing hormone',
+  'fsh', 'follicle stimulating hormone',
+  'dhea', 'dhea-s', 'dhea sulfate',
+  'progesterone',
+]);
 const BODY_COMP_TYPES  = new Set(['dexa', 'scale']);
 const IMAGING_TYPES    = new Set(['ctca']);
 const PALETTE          = ['#14b8a6', '#3b82f6', '#f59e0b', '#a855f7', '#ef4444', '#22c55e', '#f97316'];
@@ -90,9 +99,26 @@ function detectTabs(panels) {
   if ([...allMarkers.keys()].some(n => matchesSet(n, RENAL_SET)))   tabs.push({ id: 'renal',    label: 'Renal'     });
   if ([...allMarkers.keys()].some(n => matchesSet(n, LIPID_SET)))   tabs.push({ id: 'lipid',    label: 'Lipid'     });
   if ([...allMarkers.keys()].some(n => matchesSet(n, HEPATIC_SET))) tabs.push({ id: 'hepatic',  label: 'Hepatic'   });
+  if ([...allMarkers.keys()].some(n => matchesSet(n, HORMONE_SET))) tabs.push({ id: 'hormones', label: 'Hormones'  });
   if (panels.some(p => BODY_COMP_TYPES.has(p.documentType)))        tabs.push({ id: 'bodycomp', label: 'Body Comp' });
   if (panels.some(p => IMAGING_TYPES.has(p.documentType)))          tabs.push({ id: 'imaging',  label: 'Imaging'   });
   return tabs;
+}
+
+// Collect user-entered dosage info across all hormone entries
+function getDosageInfo() {
+  if (typeof state === 'undefined') return [];
+  const doses = [];
+  for (const entry of state.files.values()) {
+    if (entry.docType === 'hormones' && (entry.testDose || entry.aiDose)) {
+      doses.push({
+        date: entry.result?.drawDate ?? null,
+        testDose: entry.testDose ?? '',
+        aiDose:   entry.aiDose   ?? '',
+      });
+    }
+  }
+  return doses.sort((a, b) => !a.date ? 1 : !b.date ? -1 : a.date.localeCompare(b.date));
 }
 
 function getDateRange(panels) {
@@ -469,6 +495,80 @@ function renderImagingTab(panels) {
 </div>`;
 }
 
+function renderHormonesTab(panels) {
+  const readings  = getMarkerReadings(panels, HORMONE_SET);
+  const hasTest   = !!findSeries(readings, 'total testosterone', 'testosterone');
+  const hasE2     = !!findSeries(readings, 'estradiol', 'e2');
+  const hasMain   = hasTest || hasE2;
+  const chartTitle = hasTest && hasE2 ? 'Testosterone & Estradiol (E2)' : hasTest ? 'Testosterone' : 'Estradiol (E2)';
+
+  const MAIN_KEYS  = ['testosterone', 'estradiol', 'e2'];
+  const hasOther   = [...readings.values()].some(s => !MAIN_KEYS.some(k => normName(s.name).includes(k)));
+
+  const doses = getDosageInfo();
+  const doseSummary = doses.length ? `
+<div class="dose-summary">
+  <span class="dose-summary-label">Protocol on file:</span>
+  ${doses.map(d => `<span class="dose-entry">
+    ${d.date ? `<b>${esc(d.date)}</b>` : ''}
+    ${d.testDose ? `Test: <b>${esc(d.testDose)}</b>` : ''}
+    ${d.testDose && d.aiDose ? ' · ' : ''}
+    ${d.aiDose ? `AI: <b>${esc(d.aiDose)}</b>` : ''}
+  </span>`).join('')}
+</div>` : '';
+
+  return `
+<div class="tab-pane">
+  ${_partialNotice(panels, HORMONE_SET)}
+  ${doseSummary}
+  ${hasMain  ? chartSection(chartTitle, 'chart-hormone-main') : ''}
+  ${hasOther ? chartSection('Other Hormones', 'chart-hormone-other') : ''}
+  <h2 class="pane-title" style="margin-top:${hasMain || hasOther ? 36 : 0}px">Hormone Markers — All Data</h2>
+  ${dataTableHTML(readings)}
+</div>`;
+}
+
+function initHormonesCharts(panels) {
+  const readings = getMarkerReadings(panels, HORMONE_SET);
+  const test = findSeries(readings, 'total testosterone', 'testosterone');
+  const e2   = findSeries(readings, 'estradiol', 'e2');
+
+  // Build subtitle from user-entered dosage protocol
+  const doses  = getDosageInfo();
+  const latest = doses.at(-1);
+  const subtitle = [
+    latest?.testDose ? `Test: ${latest.testDose}` : null,
+    latest?.aiDose   ? `AI: ${latest.aiDose}`     : null,
+  ].filter(Boolean).join('   ·   ');
+
+  function withSubtitle(cfg) {
+    if (!subtitle) return cfg;
+    cfg.options.plugins.subtitle = {
+      display: true,
+      text: subtitle,
+      color: '#64748b',
+      font: { size: 10, style: 'italic' },
+      padding: { top: 2, bottom: 8 },
+    };
+    return cfg;
+  }
+
+  if (test && e2) {
+    initChart('chart-hormone-main', withSubtitle(dualAxisConfig(test, e2)));
+  } else if (test || e2) {
+    const s = test ?? e2;
+    initChart('chart-hormone-main', withSubtitle(
+      getChartConfig(s.name, s.readings, { refLow: s.refLow, refHigh: s.refHigh, unit: s.unit })
+    ));
+  }
+
+  const MAIN_KEYS = ['testosterone', 'estradiol', 'e2'];
+  const others = [...readings.values()]
+    .filter(s => !MAIN_KEYS.some(k => normName(s.name).includes(k)))
+    .slice(0, 4);
+  if (others.length) initChart('chart-hormone-other', multiLineConfig(others));
+}
+
 // ── Active tab render + init ───────────────────────────────────────────────────
 function renderActiveTab() {
   destroyAllCharts();
@@ -480,8 +580,9 @@ function renderActiveTab() {
     case 'overview':  content.innerHTML = renderOverviewTab(cards); break;
     case 'renal':     content.innerHTML = renderRenalTab(panels);     initRenalCharts(panels);    break;
     case 'lipid':     content.innerHTML = renderLipidTab(panels);     initLipidCharts(panels);    break;
-    case 'hepatic':   content.innerHTML = renderHepaticTab(panels);   initHepaticCharts(panels);  break;
-    case 'bodycomp':  content.innerHTML = renderBodyCompTab(panels);  initBodyCompCharts(panels); break;
+    case 'hepatic':   content.innerHTML = renderHepaticTab(panels);   initHepaticCharts(panels);   break;
+    case 'hormones':  content.innerHTML = renderHormonesTab(panels);  initHormonesCharts(panels);  break;
+    case 'bodycomp':  content.innerHTML = renderBodyCompTab(panels);  initBodyCompCharts(panels);  break;
     case 'imaging':   content.innerHTML = renderImagingTab(panels);   break;
   }
 }

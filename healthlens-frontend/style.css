@@ -499,14 +499,14 @@ body.drag-active { user-select: none; }
   max-width: var(--content-w);
   margin-inline: auto;
   font-size: .75rem;
-  color: #475569;
+  color: var(--teal);
 }
 .footer-link {
-  color: #475569;
+  color: var(--teal);
   text-decoration: none;
   transition: color .15s;
 }
-.footer-link:hover { color: var(--teal); text-decoration: underline; }
+.footer-link:hover { color: var(--teal-dark); text-decoration: underline; }
 
 /* ── Utilities ─────────────────────────────────────────────────────────────── */
 @media print { .no-print { display: none !important; } }
@@ -872,6 +872,74 @@ body.drag-active { user-select: none; }
   z-index: 100;
 }
 [data-tip]:hover::after { opacity: 1; }
+
+/* Privacy tooltip is longer — allow wrapping */
+.privacy-btn[data-tip]::after {
+  white-space: normal;
+  max-width: 210px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ── Hormone dosage fields (inside file card) ────────────────────────────────── */
+.card-bottom--col {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.dose-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dose-field {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dose-label {
+  font-size: .7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.dose-input {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: .8125rem;
+  padding: 6px 10px;
+  transition: border-color .15s;
+}
+.dose-input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 2px var(--teal-glow); }
+.dose-input::placeholder { color: var(--text-muted); }
+
+/* ── Hormone protocol summary (dashboard) ────────────────────────────────────── */
+.dose-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  background: rgba(20,184,166,.08);
+  border: 1px solid rgba(20,184,166,.25);
+  border-radius: var(--r);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: .8125rem;
+  color: var(--text-secondary);
+}
+.dose-summary-label {
+  font-weight: 600;
+  color: var(--teal-dark);
+  flex-shrink: 0;
+}
+.dose-entry { display: flex; gap: 5px; flex-wrap: wrap; }
+.dose-entry b { color: var(--text-primary); font-weight: 600; }
 
 /* ── "Load sample data" button ───────────────────────────────────────────────── */
 .sample-btn {
