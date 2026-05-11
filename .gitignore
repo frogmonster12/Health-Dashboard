@@ -1,0 +1,17 @@
+# Claude Code session files
+.claude/
+
+# Node dependencies (worker)
+node_modules/
+
+# Wrangler local dev cache
+.wrangler/
+
+# Environment files — never commit these
+.env
+.env.local
+.env.*
+
+# OS artifacts
+.DS_Store
+Thumbs.db

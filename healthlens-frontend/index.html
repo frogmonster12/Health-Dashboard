@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Upload health documents for private, in-browser analysis. No data is ever stored." />
+  <title>HealthLens</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="shell">
+
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="HealthLens home">
+        <svg class="brand-mark" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.5" stroke="#14b8a6" stroke-width="2.25"/>
+          <circle cx="12" cy="12" r="3.5" fill="#14b8a6" fill-opacity=".2" stroke="#14b8a6" stroke-width="1.75"/>
+          <line x1="18.2" y1="18.2" x2="25" y2="25" stroke="#14b8a6" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <span class="brand-name">HealthLens</span>
+      </a>
+      <button class="privacy-btn" id="privacyToggle" type="button" aria-pressed="false"
+              data-tip="Toggle privacy (P)">
+        <span class="privacy-icon" id="privacyIcon" aria-hidden="true"></span>
+        <span class="privacy-label" id="privacyLabel">Showing Personal Info</span>
+      </button>
+    </header>
+
+    <main class="main" id="view"></main>
+
+    <!--
+      no-print: this footer is excluded from PDF exports.
+      jsPDF generates reports programmatically and never reads the DOM,
+      so this class is for @media print hygiene only.
+    -->
+    <footer class="footer no-print">
+      <div class="footer-inner">
+        <span>HealthLens &middot; No data is stored. Ever.</span>
+        <!-- Update href to your actual public GitHub repo URL -->
+        <a class="footer-link"
+           href="https://github.com/frogmonster12/Health-Dashboard"
+           target="_blank"
+           rel="noopener noreferrer">source code ↗</a>
+      </div>
+    </footer>
+
+  </div><!-- /.shell -->
+
+  <!--
+    PDF.js 3.11.174 — pinned version on cdnjs.
+    If this version is unavailable, visit:
+    https://cdnjs.cloudflare.com/ajax/libs/pdf.js/
+    and update both URLs to the latest 3.x version number.
+  -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer"></script>
+
+  <!-- Chart.js 4.4.1 — pinned on cdnjs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer"></script>
+
+  <!-- jsPDF 2.5.1 + html2canvas 1.4.1 — pinned on cdnjs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer"></script>
+
+  <!-- Load order: rules → dashboard → exporter → app -->
+  <script src="rules.js"></script>
+  <script src="dashboard.js"></script>
+  <script src="exporter.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
