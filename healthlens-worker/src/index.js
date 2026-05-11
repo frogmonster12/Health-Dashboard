@@ -113,7 +113,7 @@ Rules:
 - "value" must always be a number (never a string). If a value cannot be parsed as a number, use null.
 - "refLow" and "refHigh" are the lower and upper bounds of the reference range as numbers, or null if not present or not numeric.
 - "flag" is H (high), L (low), HH (critically high), LL (critically low), or null. Use what the document states; do not infer.
-- "drawDate" must be in YYYY-MM-DD format, or null.
+- "drawDate" is the date the sample was collected or the test was performed. Search the ENTIRE document — headers, footers, table cells, and body — for any of these labels: Collection Date, Draw Date, Date Collected, Date Drawn, Service Date, Date of Service, Specimen Date, Specimen Collection, Report Date, Lab Date, Accession Date, Date of Test, Date Ordered, Date Resulted, Resulted, Received. The date may appear in any format (MM/DD/YYYY, M/D/YY, YYYY-MM-DD, Month D YYYY, etc.) — convert it to YYYY-MM-DD. Use null ONLY if you have exhausted every part of the document and truly cannot find any date.
 - "extractionConfidence" is "high" if most values were cleanly parsed, "medium" if some were ambiguous, "low" if the document was difficult to parse.
 - If a field is not found in the document, use null.
 - Do not add markers that are not explicitly present in the document text.

@@ -399,12 +399,25 @@ async function analyzeFile(id) {
   checkAllDone();
 }
 
-// After every analysis settles, transition to the dashboard if any file succeeded.
+// After every analysis settles, handle transition to dashboard.
 function checkAllDone() {
   const entries = [...state.files.values()];
   if (!entries.length) return;
   if (!entries.every(e => e.phase === 'done' || e.phase === 'error')) return;
-  if (entries.some(e => e.phase === 'done')) switchView(renderDashboard);
+  const anyDone = entries.some(e => e.phase === 'done');
+  if (!anyDone) return;
+
+  // Re-render cards so date inputs appear for panels with missing dates
+  renderFileList();
+  updateAnalyzeBtn(); // morphs to "View Dashboard →"
+
+  const missingDates = entries.filter(e => e.phase === 'done' && !e.result?.drawDate);
+  if (missingDates.length === 0) {
+    // Everything has dates — go straight to dashboard
+    switchView(renderDashboard);
+  }
+  // If dates are missing, stay here so the user can fill them in,
+  // then click "View Dashboard →" when ready.
 }
 
 // ── Add files ─────────────────────────────────────────────────────────────────
@@ -484,6 +497,18 @@ function cardHTML(entry) {
   let bottomContent;
   if (entry.showManual) {
     bottomContent = manualFormHTML(entry);
+  } else if (entry.phase === 'done') {
+    const count = entry.result?.markers?.length ?? 0;
+    const dateStr = entry.result?.drawDate;
+    if (!dateStr) {
+      bottomContent = `
+        <div class="done-date-row">
+          <span class="done-summary">${count} marker${count !== 1 ? 's' : ''} extracted &nbsp;·&nbsp; <span class="date-missing-label">date not found — enter to plot on charts</span></span>
+          <input type="date" class="date-missing-input" data-action="setdate" data-id="${esc(entry.id)}" />
+        </div>`;
+    } else {
+      bottomContent = `<span class="done-summary">✓ ${count} marker${count !== 1 ? 's' : ''} extracted &nbsp;·&nbsp; ${esc(dateStr)}</span>`;
+    }
   } else if (entry.phase === 'error') {
     const canManual = entry.errorPhase === 'analyze';
     bottomContent = `
@@ -502,7 +527,9 @@ function cardHTML(entry) {
   <div class="card-top">
     <span class="file-badge ${badge.cls}">${badge.label}</span>
     <span class="file-name" title="${esc(entry.file.name)}">${esc(entry.file.name)}</span>
-    ${statusHTML(entry.phase)}
+    ${entry.phase === 'done' && !entry.result?.drawDate
+      ? `<span class="card-status status-warn">⚠ Date missing</span>`
+      : statusHTML(entry.phase)}
     ${removable
       ? `<button class="remove-btn" data-action="remove" data-id="${esc(entry.id)}"
            aria-label="Remove ${esc(entry.file.name)}" title="Remove">×</button>`
@@ -580,10 +607,20 @@ function wireDropZoneBrowse(zone) {
 function updateAnalyzeBtn() {
   const btn = document.getElementById('analyzeBtn');
   if (!btn) return;
-  const ready = [...state.files.values()].some(
-    e => e.phase === 'ready' && e.docType !== ''
-  );
-  btn.disabled = !ready;
+  const entries    = [...state.files.values()];
+  const allSettled = entries.length > 0 && entries.every(e => e.phase === 'done' || e.phase === 'error');
+  const anyDone    = entries.some(e => e.phase === 'done');
+
+  if (allSettled && anyDone) {
+    // All done — morph into dashboard navigation button
+    btn.disabled = false;
+    btn.textContent = 'View Dashboard →';
+    btn.dataset.mode = 'view';
+    return;
+  }
+  btn.dataset.mode = 'analyze';
+  btn.textContent  = 'Analyze Documents';
+  btn.disabled = !entries.some(e => e.phase === 'ready' && e.docType !== '');
 }
 
 // ── Drop error flash ──────────────────────────────────────────────────────────
@@ -813,11 +850,25 @@ function wireUploadView() {
     if (aiInput) {
       const entry = state.files.get(aiInput.dataset.id);
       if (entry) entry.aiDose = aiInput.value;
+      return;
+    }
+    const dateInput = e.target.closest('[data-action="setdate"]');
+    if (dateInput) {
+      const entry = state.files.get(dateInput.dataset.id);
+      if (entry?.result) {
+        entry.result.drawDate = dateInput.value || null;
+        updateCard(dateInput.dataset.id);
+        updateAnalyzeBtn();
+      }
     }
   });
 
-  // Analyze button
+  // Analyze / View Dashboard button
   analyzeBtn.addEventListener('click', () => {
+    if (analyzeBtn.dataset.mode === 'view') {
+      switchView(renderDashboard);
+      return;
+    }
     const toAnalyze = [...state.files.values()].filter(
       e => e.phase === 'ready' && e.docType !== ''
     );
