@@ -1013,7 +1013,7 @@ function init() {
       if (!msg) { ta.focus(); return; }
       const subject = encodeURIComponent(`HealthLens – ${type === 'bug' ? 'Bug Report' : 'Suggestion'}`);
       const body    = encodeURIComponent(`Type: ${type === 'bug' ? 'Bug' : 'Suggestion'}\n\n${msg}\n\n---\nSent from HealthLens`);
-      window.open(`mailto:jhs.amarillo@gmail.com?subject=${subject}&body=${body}`);
+      window.open(`mailto:bugs.healthlens@gmail.com?subject=${subject}&body=${body}`);
       overlay.remove();
     });
   }
