@@ -15,7 +15,8 @@ const DOC_TYPES = [
   { value: '',            label: 'Select document type…' },
   { value: 'blood_work',  label: 'Blood Work / CMP' },
   { value: 'lipid_panel', label: 'Lipid Panel' },
-  { value: 'hormones',    label: 'Testosterone / E2' },
+  { value: 'testosterone', label: 'Testosterone' },
+  { value: 'estradiol',   label: 'Estradiol (E2)' },
   { value: 'dexa',        label: 'DEXA Scan' },
   { value: 'scale',       label: 'Scale / Weight Log' },
   { value: 'ctca',        label: 'CTCA / Imaging' },
@@ -227,13 +228,21 @@ const MANUAL_FIELDS = {
     {name:'CAC Score', unit:'',  refLow:null, refHigh:0  },
     {name:'LVEF',      unit:'%', refLow:55,   refHigh:null},
   ],
-  hormones: [
+  testosterone: [
     {name:'Total Testosterone', unit:'ng/dL',  refLow:300, refHigh:1000},
     {name:'Free Testosterone',  unit:'pg/mL',  refLow:5,   refHigh:30  },
-    {name:'Estradiol (E2)',     unit:'pg/mL',  refLow:10,  refHigh:40  },
     {name:'SHBG',               unit:'nmol/L', refLow:10,  refHigh:57  },
     {name:'LH',                 unit:'mIU/mL', refLow:1.7, refHigh:8.6 },
     {name:'FSH',                unit:'mIU/mL', refLow:1.5, refHigh:12.4},
+  ],
+  estradiol: [
+    {name:'Estradiol (E2)', unit:'pg/mL', refLow:10, refHigh:40},
+    {name:'SHBG',           unit:'nmol/L',refLow:10, refHigh:57},
+  ],
+  // legacy key — kept so old in-session entries still get a form
+  hormones: [
+    {name:'Total Testosterone', unit:'ng/dL',  refLow:300, refHigh:1000},
+    {name:'Estradiol (E2)',     unit:'pg/mL',  refLow:10,  refHigh:40  },
   ],
 };
 
@@ -517,7 +526,8 @@ function cardHTML(entry) {
       ${canManual ? `<button class="manual-btn" data-action="manual" data-id="${esc(entry.id)}">Enter manually</button>` : ''}`;
   } else {
     const sel = `<select class="doc-type-select" data-action="doctype" data-id="${esc(entry.id)}"${selectOff ? ' disabled' : ''}>${options}</select>`;
-    bottomContent = entry.docType === 'hormones'
+    // Dosage fields only on Testosterone — not on Estradiol
+    bottomContent = entry.docType === 'testosterone'
       ? sel + doseFieldsHTML(entry)
       : sel;
   }
@@ -535,7 +545,7 @@ function cardHTML(entry) {
            aria-label="Remove ${esc(entry.file.name)}" title="Remove">×</button>`
       : ''}
   </div>
-  <div class="card-bottom${entry.docType === 'hormones' && !entry.showManual && entry.phase !== 'error' ? ' card-bottom--col' : ''}">
+  <div class="card-bottom${entry.docType === 'testosterone' && !entry.showManual && entry.phase !== 'error' ? ' card-bottom--col' : ''}">
     ${bottomContent}
   </div>
 </div>`;

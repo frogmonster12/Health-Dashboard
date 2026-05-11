@@ -177,7 +177,7 @@ function getDosageInfo() {
   const seen  = new Set();
   const doses = [];
   for (const entry of state.files.values()) {
-    if (entry.docType === 'hormones' && (entry.testDose || entry.aiDose)) {
+    if ((entry.docType === 'testosterone' || entry.docType === 'hormones') && (entry.testDose || entry.aiDose)) {
       const date = entry.result?.drawDate ?? null;
       const key  = `${date}|${entry.testDose ?? ''}|${entry.aiDose ?? ''}`;
       if (seen.has(key)) continue;

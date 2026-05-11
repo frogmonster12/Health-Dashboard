@@ -378,58 +378,93 @@ async function _bodyCompImgs(panels) {
   return result;
 }
 
-// ── Sections ──────────────────────────────────────────────────────────────────
-async function _addCharts(panels) {
-  const cats = [
-    { title: 'Renal Function',        fn: _renalImgs    },
-    { title: 'Lipid Panel',           fn: _lipidImgs    },
-    { title: 'Hepatic Markers',       fn: _hepaticImgs  },
-    { title: 'Hormones',              fn: _hormoneImgs  },
-    { title: 'Body Composition',      fn: _bodyCompImgs },
+// ── Combined sections: each category gets its own page with chart then table ───
+async function _addSections(panels) {
+  const SECTIONS = [
+    {
+      title: 'Renal Function',
+      chartFn: _renalImgs,
+      getMap: (p) => getMarkerReadings(p, RENAL_SET),
+    },
+    {
+      title: 'Lipid Panel',
+      chartFn: _lipidImgs,
+      getMap: (p) => getMarkerReadings(p, LIPID_SET),
+    },
+    {
+      title: 'Hepatic Markers',
+      chartFn: _hepaticImgs,
+      getMap: (p) => getMarkerReadings(p, HEPATIC_SET),
+    },
+    {
+      title: 'Hormones',
+      chartFn: _hormoneImgs,
+      getMap: (p) => getMarkerReadings(p, HORMONE_SET),
+    },
+    {
+      title: 'Body Composition',
+      chartFn: _bodyCompImgs,
+      getMap: (p) => {
+        const d = getMarkerReadings(p.filter(x => x.documentType === 'dexa'),  null);
+        const s = getMarkerReadings(p.filter(x => x.documentType === 'scale'), null);
+        return new Map([...d, ...s]);
+      },
+    },
   ];
-  for (const cat of cats) {
-    const imgs = await cat.fn(panels);
-    if (!imgs.length) continue;
-    _sectionHead(cat.title);
-    for (const { title, img } of imgs) {
-      _need(CHART_H + 10);
-      if (title) { _f(8, 'normal', KC.mid); _pdf.text(title, PM, _cy); _cy += 5; }
+
+  const shownKeys = new Set();
+
+  for (const sec of SECTIONS) {
+    const markerMap = sec.getMap(panels);
+    const imgs      = await sec.chartFn(panels);
+    if (!markerMap.size && !imgs.length) continue;
+
+    // Each section starts on a fresh page
+    _newPage();
+    _sectionHead(sec.title);
+
+    // Chart(s) — multiple for lipid (primary + triglycerides)
+    for (const { title: chartTitle, img } of imgs) {
+      if (imgs.length > 1 && chartTitle) {
+        _f(8, 'normal', KC.mid);
+        _pdf.text(chartTitle, PM, _cy);
+        _cy += 5;
+      }
+      // Start new page if chart won't fit (e.g. multi-chart sections)
+      _need(CHART_H + 4);
       _pdf.addImage(img, 'PNG', PM, _cy, PCW, CHART_H);
-      _cy += CHART_H + 8;
+      _cy += CHART_H + 10;
+    }
+
+    // Data table immediately after chart(s)
+    if (markerMap.size) {
+      _renderTable(markerMap);
+      for (const k of markerMap.keys()) shownKeys.add(k);
     }
   }
-}
 
-function _addTables(panels) {
-  const seen = new Set();
-  const catDefs = [
-    { title: 'Renal Markers',   set: RENAL_SET,   docTypes: null },
-    { title: 'Lipid Markers',   set: LIPID_SET,   docTypes: null },
-    { title: 'Hepatic Markers', set: HEPATIC_SET, docTypes: null },
-    { title: 'DEXA / Body Composition', set: null, docTypes: new Set(['dexa'])  },
-    { title: 'Scale / Weight',  set: null, docTypes: new Set(['scale']) },
-  ];
-
-  for (const def of catDefs) {
-    const src = def.docTypes
-      ? panels.filter(p => def.docTypes.has(p.documentType))
-      : panels;
-    const m = def.set ? getMarkerReadings(src, def.set) : getMarkerReadings(src, null);
-    if (!m.size) continue;
-    _need(20); _sectionHead(def.title); _renderTable(m);
-    for (const k of m.keys()) seen.add(k);
+  // Imaging — its own page (stat cards + table, no chart)
+  const imgPanels = panels.filter(p => IMAGING_TYPES.has(p.documentType));
+  if (imgPanels.length) {
+    _newPage();
+    _addImagingSection(panels);
   }
 
-  // Remaining markers not shown above (excludes imaging panels)
-  const rest = getMarkerReadings(panels.filter(p => !IMAGING_TYPES.has(p.documentType)), null);
-  const remaining = new Map([...rest].filter(([k]) => !seen.has(k)));
-  if (remaining.size) { _need(20); _sectionHead('Other Markers'); _renderTable(remaining); }
+  // Catch-all: anything not shown above
+  const allRest = getMarkerReadings(
+    panels.filter(p => !IMAGING_TYPES.has(p.documentType)), null
+  );
+  const remaining = new Map([...allRest].filter(([k]) => !shownKeys.has(k)));
+  if (remaining.size) {
+    _newPage();
+    _sectionHead('Other Markers');
+    _renderTable(remaining);
+  }
 }
 
 function _addImagingSection(panels) {
   const imgPanels = panels.filter(p => IMAGING_TYPES.has(p.documentType));
   if (!imgPanels.length) return;
-  _need(20);
   _sectionHead('Imaging / CTCA');
 
   const all  = getMarkerReadings(imgPanels, null);
@@ -537,14 +572,8 @@ async function exportPDF() {
       }
     }
 
-    // 5. Charts (off-screen Chart.js render → chart.toBase64Image())
-    await _addCharts(panels);
-
-    // 6. Data tables (programmatic jsPDF — repeating header on page breaks)
-    _addTables(panels);
-
-    // 7. Imaging section (if CTCA data present)
-    _addImagingSection(panels);
+    // 5. One page per category: chart then data table, imaging handled inside
+    await _addSections(panels);
 
     // 8. Footers on every page (must run last — needs final page count)
     _addAllFooters();

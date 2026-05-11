@@ -14,13 +14,15 @@ const MAX_TEXT_CHARS = 6000;
 const VALID_DOC_TYPES = [
   "blood_work",
   "lipid_panel",
+  "testosterone",
+  "estradiol",
   "dexa",
   "scale",
   "ctca",
   "metabolic",
   "cbc",
   "thyroid",
-  "hormones",
+  "hormones",  // legacy — kept for backward compatibility
   "other",
 ];
 
