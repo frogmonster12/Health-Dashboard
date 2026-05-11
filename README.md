@@ -2,7 +2,9 @@
 
 HealthLens lets you upload blood work, DEXA scans, imaging results, and weight logs and instantly see trend charts, flagged values, and a shareable PDF report. Everything runs directly in your browser — no account, no server, no data ever stored.
 
-**Live site:** https://healthlens.pages.dev
+**Live site:** https://health-dashboard.jhs-amarillo.workers.dev
+
+**Source:** https://github.com/frogmonster12/Health-Dashboard
 
 ---
 
