@@ -398,10 +398,8 @@ function _partialNotice(panels, nameSet) {
     ? panels.filter(p => getMarkerReadings([p], nameSet).size > 0)
     : panels;
   if (!relevant.length) return '';
-  const hasIssues = relevant.some(p =>
-    p.extractionConfidence === 'low' ||
-    (Array.isArray(p.parseWarnings) && p.parseWarnings.length > 0)
-  );
+  // Only warn for genuinely low confidence — ignore routine truncation notices
+  const hasIssues = relevant.some(p => p.extractionConfidence === 'low');
   return hasIssues
     ? '<div class="partial-notice">⚠ Partial extraction detected on one or more documents — some values may be missing. Verify against original reports.</div>'
     : '';

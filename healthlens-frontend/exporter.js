@@ -334,6 +334,33 @@ async function _hepaticImgs(panels) {
     img: await _captureChart(multiLineConfig(enzymes, 'U/L')) }];
 }
 
+async function _hormoneImgs(panels) {
+  const readings = getMarkerReadings(panels, HORMONE_SET);
+  const test = findSeries(readings, 'total testosterone', 'testosterone');
+  const e2   = findSeries(readings, 'estradiol', 'e2');
+  if (!test && !e2) return [];
+
+  const doses = getDosageInfo();
+  function applyDosage(cfg) {
+    if (!doses.length) return cfg;
+    cfg.options.layout = cfg.options.layout ?? {};
+    cfg.options.layout.padding = { ...(cfg.options.layout.padding ?? {}), top: 36 };
+    cfg.options.plugins = cfg.options.plugins ?? {};
+    cfg.options.plugins.dosageLines = { doses };
+    cfg.plugins = [DOSAGE_LINES_PLUGIN];
+    return cfg;
+  }
+
+  const config = (test && e2)
+    ? applyDosage(dualAxisConfig(test, e2))
+    : applyDosage((() => {
+        const s = test ?? e2;
+        return getChartConfig(s.name, s.readings, { refLow: s.refLow, refHigh: s.refHigh, unit: s.unit });
+      })());
+
+  return [{ title: 'Testosterone & Estradiol (E2)', img: await _captureChart(config) }];
+}
+
 async function _bodyCompImgs(panels) {
   const result = [];
   const dexaM  = getMarkerReadings(panels.filter(p => p.documentType === 'dexa'), null);
@@ -354,10 +381,11 @@ async function _bodyCompImgs(panels) {
 // ── Sections ──────────────────────────────────────────────────────────────────
 async function _addCharts(panels) {
   const cats = [
-    { title: 'Renal Function',   fn: _renalImgs    },
-    { title: 'Lipid Panel',      fn: _lipidImgs    },
-    { title: 'Hepatic Markers',  fn: _hepaticImgs  },
-    { title: 'Body Composition', fn: _bodyCompImgs },
+    { title: 'Renal Function',        fn: _renalImgs    },
+    { title: 'Lipid Panel',           fn: _lipidImgs    },
+    { title: 'Hepatic Markers',       fn: _hepaticImgs  },
+    { title: 'Hormones',              fn: _hormoneImgs  },
+    { title: 'Body Composition',      fn: _bodyCompImgs },
   ];
   for (const cat of cats) {
     const imgs = await cat.fn(panels);
