@@ -286,7 +286,8 @@ function dataTableHTML(markerMap) {
       const { status } = flagValue(r.value, acc.refLow, acc.refHigh);
       const refText = acc.refLow != null && acc.refHigh != null ? `${acc.refLow}–${acc.refHigh}`
         : acc.refHigh != null ? `<${acc.refHigh}` : acc.refLow != null ? `>${acc.refLow}` : '—';
-      rows.push({ date: r.date, name: acc.name, value: r.value, unit: acc.unit, refText, status });
+      const annKey = `${normName(acc.name)}::${r.date ?? ''}`;
+      rows.push({ date: r.date, name: acc.name, value: r.value, unit: acc.unit, refText, status, annKey });
     }
   }
   rows.sort((a, b) => !a.date ? 1 : !b.date ? -1 : b.date.localeCompare(a.date));
@@ -294,20 +295,91 @@ function dataTableHTML(markerMap) {
   return `
 <div class="table-wrap">
   <table class="data-table">
-    <thead><tr><th>Date</th><th>Marker</th><th>Value</th><th>Unit</th><th>Ref Range</th><th>Flag</th></tr></thead>
+    <thead><tr><th>Date</th><th>Marker</th><th>Value</th><th>Unit</th><th>Ref Range</th><th>Flag</th><th class="th-note"></th></tr></thead>
     <tbody>
-      ${rows.map(r => `
+      ${rows.map(r => {
+        const note = state.annotations?.[r.annKey] ?? '';
+        return `
       <tr class="row-${r.status.toLowerCase()}">
         <td>${esc(r.date ?? '—')}</td>
-        <td>${esc(r.name)}</td>
+        <td class="td-marker">
+          ${esc(r.name)}
+          ${note ? `<span class="ann-text">${esc(note)}</span>` : ''}
+        </td>
         <td class="cell-val">${r.value}</td>
         <td>${esc(r.unit || '—')}</td>
         <td>${esc(r.refText)}</td>
         <td>${flagBadgeHTML(r.status)}</td>
-      </tr>`).join('')}
+        <td><button class="ann-btn" data-ann-key="${esc(r.annKey)}" title="${note ? 'Edit note' : 'Add note'}">${note ? '💬' : '✎'}</button></td>
+      </tr>`;
+      }).join('')}
     </tbody>
   </table>
 </div>`;
+}
+
+// ── Annotation modal ───────────────────────────────────────────────────────────
+function openAnnotationModal(key) {
+  if (!key) return;
+  const current = state.annotations?.[key] ?? '';
+  const [markerRaw, dateRaw] = key.split('::');
+  const title = [markerRaw, dateRaw].filter(Boolean).join(' · ');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box" role="dialog" aria-modal="true">
+      <h3 class="modal-title">Note — ${esc(title)}</h3>
+      <p class="modal-body">Add context: medication changes, events, symptoms, or anything relevant to this reading.</p>
+      <textarea class="ann-textarea" placeholder="e.g. Started statin 20mg / day" rows="3">${esc(current)}</textarea>
+      <div class="modal-actions">
+        <button class="modal-btn modal-cancel-btn" id="annCancel" type="button">Cancel</button>
+        ${current ? '<button class="modal-btn ann-clear-btn" id="annClear" type="button">Remove note</button>' : ''}
+        <button class="modal-btn modal-confirm-btn" id="annSave" type="button">Save note</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const ta = overlay.querySelector('.ann-textarea');
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('#annCancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  const onKey = e => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
+  document.addEventListener('keydown', onKey);
+
+  overlay.querySelector('#annClear')?.addEventListener('click', () => {
+    delete state.annotations[key];
+    _patchAnnRow(key, '');
+    close();
+  });
+
+  overlay.querySelector('#annSave').addEventListener('click', () => {
+    const val = ta.value.trim();
+    if (val) { state.annotations[key] = val; } else { delete state.annotations[key]; }
+    _patchAnnRow(key, val);
+    close();
+  });
+}
+
+// Surgically update a single table row's note display without re-rendering the tab
+function _patchAnnRow(key, note) {
+  const escaped = key.replace(/"/g, '\\"');
+  const btn = document.querySelector(`.ann-btn[data-ann-key="${escaped}"]`);
+  if (!btn) return;
+  btn.textContent = note ? '💬' : '✎';
+  btn.title = note ? 'Edit note' : 'Add note';
+  const td = btn.closest('tr')?.querySelector('.td-marker');
+  if (!td) return;
+  let span = td.querySelector('.ann-text');
+  if (note) {
+    if (!span) { span = document.createElement('span'); span.className = 'ann-text'; td.appendChild(span); }
+    span.textContent = note;
+  } else {
+    span?.remove();
+  }
 }
 
 function chartSection(title, canvasId) {
@@ -886,6 +958,12 @@ function renderDashboard() {
 
   // Export button — exportPDF() is defined in exporter.js
   document.getElementById('exportBtn').addEventListener('click', () => exportPDF());
+
+  // Annotation buttons — open note modal on any data table row
+  document.getElementById('dashContent').addEventListener('click', (e) => {
+    const btn = e.target.closest('.ann-btn');
+    if (btn) openAnnotationModal(btn.dataset.annKey);
+  });
 
   // Goal input — update state.goals and reinit charts when a goal value changes
   document.getElementById('dashContent').addEventListener('change', (e) => {

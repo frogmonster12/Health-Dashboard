@@ -224,19 +224,45 @@ function _buildRows(markerMap) {
       : acc.refHigh != null ? `<${acc.refHigh}` : acc.refLow != null ? `>${acc.refLow}` : '—';
     for (const r of acc.readings) {
       const { status } = flagValue(r.value, acc.refLow, acc.refHigh);
-      rows.push({ date: r.date ?? '—', name: acc.name, value: String(r.value), unit: acc.unit || '—', ref, status });
+      rows.push({
+        date: r.date ?? '—',
+        dateKey: r.date ?? '',      // original date for annotation lookup
+        name: acc.name,
+        value: String(r.value),
+        unit: acc.unit || '—',
+        ref, status,
+      });
     }
   }
   return rows.sort((a, b) => a.date === '—' ? 1 : b.date === '—' ? -1 : b.date.localeCompare(a.date));
 }
+
+const ANN_ROW_H = 5.5; // mm height of an annotation note line in the PDF
 
 function _renderTable(markerMap) {
   const rows = _buildRows(markerMap);
   if (!rows.length) { _f(8, 'normal', KC.muted); _pdf.text('No data.', PM, _cy + 6); _cy += 10; return; }
   _tableHeader();
   rows.forEach((row, i) => {
-    if (_cy + ROW_H > PMY) { _newPage(); _tableHeader(); }
+    const annKey  = `${normName(row.name)}::${row.dateKey}`;
+    const note    = state.annotations?.[annKey] ?? '';
+    const rowTotal = ROW_H + (note ? ANN_ROW_H : 0);
+
+    if (_cy + rowTotal > PMY) { _newPage(); _tableHeader(); }
     _tableRow(row, i % 2 === 0);
+
+    // Annotation note — drawn as a subtle italic line below the data row
+    if (note) {
+      _pdf.setFillColor(248, 250, 252);
+      _pdf.setDrawColor(241, 245, 249);
+      _pdf.setLineWidth(0.12);
+      _pdf.rect(PM, _cy, PCW, ANN_ROW_H, 'FD');
+      _f(6.5, 'normal', KC.muted);
+      _pdf.setFont('helvetica', 'italic');
+      _pdf.text(`Note: ${_trunc(note, PCW - 26)}`, PM + 25, _cy + ANN_ROW_H - 1.5);
+      _pdf.setFont('helvetica', 'normal');
+      _cy += ANN_ROW_H;
+    }
   });
   _cy += 6;
 }
@@ -588,20 +614,10 @@ async function exportPDF() {
     // 4. Flagged markers
     //    - If privacy ON: data is already redacted (came from /redact)
     //    - If privacy OFF: use live state data
-    //    Cards are rendered off-screen via html2canvas so the visual output
-    //    exactly matches what the user would see on the dashboard.
+    // Flagged marker cards — always drawn programmatically (mobile-safe, no html2canvas)
     if (flagged.length) {
       _sectionHead(`Flagged Markers (${flagged.length})`);
-      try {
-        const captured = await _captureCards(summaryGridHTML(flagged, false));
-        const imgH = (captured.ph / captured.pw) * PCW;
-        _need(imgH + 4);
-        _pdf.addImage(captured.dataUrl, 'PNG', PM, _cy, PCW, imgH);
-        _cy += imgH + 8;
-      } catch {
-        // html2canvas fallback: draw cards programmatically
-        _drawSummaryCards(flagged);
-      }
+      _drawSummaryCards(flagged);
     }
 
     // 5. One page per category: chart then data table, imaging handled inside

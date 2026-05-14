@@ -79,6 +79,7 @@ const state = {
   privacyMode: false,
   exporting: false,   // true while PDF export is running — blocks privacy toggle
   goals: {},          // normName(markerName) → goal value (number); persists across file uploads
+  annotations: {},    // `${normName(name)}::${date}` → note string; persists across file uploads
 };
 
 // FileEntry shape:
