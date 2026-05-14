@@ -1,5 +1,5 @@
 # HealthLens — Project Status
-*Last updated: 2026-05-11*
+*Last updated: 2026-05-13*
 
 ---
 
@@ -54,6 +54,8 @@
 - **Lipid**: Multi-line chart (LDL/HDL/Total Chol/Non-HDL) + Triglycerides chart + table.
 - **Hepatic**: Multi-line enzymes chart (AST/ALT/Alk Phos) + table.
 - **Hormones**: Dual-axis T + E2 chart with teal dashed vertical lines at dates where dosage data was entered. Labels (Test: X · AI: X) appear in dark pill above each line. Protocol on file banner below tabs. + table.
+- **CBC**: Dual-axis Hgb/Hct chart + WBC chart + Platelets chart + full CBC table.
+- **Thyroid**: TSH chart (amber) + Free T4/T3 multi-line + full thyroid table.
 - **Body Comp**: DEXA composition chart + weight trend chart + tables.
 - **Imaging**: CAC Score + LVEF stat cards + coronary findings + all markers table.
 - Partial extraction notice (amber) shown on tabs when any contributing panel has `extractionConfidence === 'low'`.
@@ -122,15 +124,15 @@
 ## Suggestions for next session
 
 ### High value / quick
-- [ ] **Reference range display on charts** — The `getChartConfig` function already supports `refLow`/`refHigh` dashed lines, but they're only used for single-marker charts. Add shaded bands to multi-line charts too.
+- [x] **Reference range on multi-line charts** — DONE. Multi-line charts now color each data point red/blue/normal by flag status. Ref range + flag status appear in the hover tooltip for every series.
+- [x] **CBC / Thyroid tabs** — DONE. Full tabs with charts, tables, and PDF export. CBC: Hgb/Hct dual-axis, WBC, Platelets. Thyroid: TSH, Free T4/T3.
+- [x] **Goal lines on charts** — DONE. Every summary card on the Overview tab has a "Goal" input. Entering a value draws a green dashed goal line on the corresponding chart (all single-marker charts + dual-axis). Goals persist for the session and show in the PDF.
 - [ ] **"Optimal" vs "Normal" flagging** — Lab reference ranges are population averages. Many users (especially TRT patients) want to know their values relative to optimal ranges, not just lab normal. Could add a secondary optional range shown in a different color.
 - [ ] **Date range filter on dashboard** — When a user has 3+ years of data, a date range slider to focus charts on a specific period would be useful.
 - [ ] **Trend arrow direction clarification** — Add a small legend or tooltip explaining that "↗ improving" means the value is trending toward optimal, not necessarily increasing.
 
 ### Medium effort
 - [ ] **Multiple document upload at once with batch date entry** — Currently, each missing-date card requires individual input. A "Set date for all undated documents" field would be faster.
-- [ ] **CBC / Thyroid tab** — The rules and marker detection infrastructure is ready; just needs a new tab renderer in `dashboard.js` and chart functions in `exporter.js` mirroring the Renal/Lipid pattern.
-- [ ] **Goal lines on charts** — Let the user set a personal target value for a marker (e.g. "my LDL goal is 70"). Draw a green goal line on the chart.
 - [ ] **Mobile export** — jsPDF works on mobile but the result is occasionally misaligned because the off-screen html2canvas div uses fixed pixel widths. A pure-programmatic fallback (no html2canvas) would be more reliable on phones.
 
 ### Larger features
