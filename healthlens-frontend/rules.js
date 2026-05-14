@@ -140,9 +140,9 @@ function buildSummaryCards(allPanels) {
 
 // ── getChartConfig ─────────────────────────────────────────────────────────────
 // Returns a Chart.js v4 config for a single-marker line chart.
-// options: { refLow, refHigh, unit, color }
+// options: { refLow, refHigh, unit, color, goal }
 function getChartConfig(markerName, dataPoints, options = {}) {
-  const { refLow = null, refHigh = null, unit = '', color = '#14b8a6' } = options;
+  const { refLow = null, refHigh = null, unit = '', color = '#14b8a6', goal = null } = options;
   const labels = dataPoints.map(p => p.date ?? '—');
   const values = dataPoints.map(p => p.value);
 
@@ -184,6 +184,17 @@ function getChartConfig(markerName, dataPoints, options = {}) {
       borderColor: 'rgba(59,130,246,.4)',
       borderDash: [6, 5],
       borderWidth: 1.5,
+      pointRadius: 0, pointHoverRadius: 0,
+      fill: false, yAxisID: 'y',
+    });
+  }
+  if (goal != null) {
+    datasets.push({
+      label: `Goal: ${goal}${unit ? ' ' + unit : ''}`,
+      data: values.map(() => goal),
+      borderColor: 'rgba(34,197,94,.85)',
+      borderDash: [8, 5],
+      borderWidth: 2,
       pointRadius: 0, pointHoverRadius: 0,
       fill: false, yAxisID: 'y',
     });

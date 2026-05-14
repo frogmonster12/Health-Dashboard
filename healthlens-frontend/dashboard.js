@@ -94,6 +94,31 @@ const DOSAGE_LINES_PLUGIN = {
   }
 };
 
+const CBC_SET = new Set([
+  'wbc', 'white blood cells', 'white blood count', 'leukocytes',
+  'rbc', 'red blood cells', 'red blood count', 'erythrocytes',
+  'hemoglobin', 'hgb', 'hb',
+  'hematocrit', 'hct',
+  'mcv', 'mch', 'mchc', 'rdw',
+  'platelets', 'platelet count', 'thrombocytes', 'plt',
+  'neutrophils', 'neutrophil', 'absolute neutrophils',
+  'lymphocytes', 'lymphocyte', 'absolute lymphocytes',
+  'monocytes', 'monocyte', 'absolute monocytes',
+  'eosinophils', 'eosinophil', 'absolute eosinophils',
+  'basophils', 'basophil',
+  'immature granulocytes', 'nrbc',
+]);
+const THYROID_SET = new Set([
+  'tsh', 'thyroid stimulating hormone', 'thyrotropin',
+  'free t4', 'ft4', 'free thyroxine', 't4 free',
+  'free t3', 'ft3', 'free triiodothyronine', 't3 free',
+  'total t4', 't4', 'thyroxine',
+  'total t3', 't3', 'triiodothyronine',
+  'reverse t3', 'rt3',
+  'tpo', 'tpo antibodies', 'thyroid peroxidase antibodies', 'anti-tpo',
+  'thyroglobulin antibodies', 'tgab',
+  'thyroglobulin',
+]);
 const BODY_COMP_TYPES  = new Set(['dexa', 'scale']);
 const IMAGING_TYPES    = new Set(['ctca']);
 const PALETTE          = ['#14b8a6', '#3b82f6', '#f59e0b', '#a855f7', '#ef4444', '#22c55e', '#f97316'];
@@ -166,6 +191,8 @@ function detectTabs(panels) {
   if ([...allMarkers.keys()].some(n => matchesSet(n, LIPID_SET)))   tabs.push({ id: 'lipid',    label: 'Lipid'     });
   if ([...allMarkers.keys()].some(n => matchesSet(n, HEPATIC_SET))) tabs.push({ id: 'hepatic',  label: 'Hepatic'   });
   if ([...allMarkers.keys()].some(n => matchesSet(n, HORMONE_SET))) tabs.push({ id: 'hormones', label: 'Hormones'  });
+  if ([...allMarkers.keys()].some(n => matchesSet(n, CBC_SET)))     tabs.push({ id: 'cbc',      label: 'CBC'       });
+  if ([...allMarkers.keys()].some(n => matchesSet(n, THYROID_SET))) tabs.push({ id: 'thyroid',  label: 'Thyroid'   });
   if (panels.some(p => BODY_COMP_TYPES.has(p.documentType)))        tabs.push({ id: 'bodycomp', label: 'Body Comp' });
   if (panels.some(p => IMAGING_TYPES.has(p.documentType)))          tabs.push({ id: 'imaging',  label: 'Imaging'   });
   return tabs;
@@ -231,6 +258,14 @@ function summaryCardHTML(card) {
   <div class="sc-name">${esc(card.name)}</div>
   <div class="sc-value">${card.value} <span class="sc-unit">${esc(card.unit)}</span></div>
   <div class="sc-ref">Ref: ${esc(refText)}</div>
+  <div class="sc-goal-row">
+    <span class="sc-goal-label">Goal</span>
+    <input type="number" step="any" class="sc-goal-input"
+           data-marker-goal="${normName(card.name)}"
+           value="${state.goals?.[normName(card.name)] ?? ''}"
+           placeholder="—" />
+    ${card.unit ? `<span class="sc-goal-unit">${esc(card.unit)}</span>` : ''}
+  </div>
   <div class="sc-footer">
     <span class="sev-badge sev-${card.severity}">${card.severity}</span>
     <span class="trend-label ${trendCls}" title="${card.trend}">${trendArrow}</span>
@@ -302,13 +337,22 @@ function multiLineConfig(seriesArr, yLabel) {
 
   const datasets = seriesArr.map((s, i) => {
     const colorBase = PALETTE[i % PALETTE.length];
-    const valueMap = new Map(s.readings.map(r => [r.date, r.value]));
+    const valueMap  = new Map(s.readings.map(r => [r.date, r.value]));
+    const values    = labels.map(d => valueMap.get(d) ?? null);
+    // Color each point by flag status — red=HIGH, blue=LOW, series color=normal
+    const pointColors = values.map(v => {
+      if (v == null) return colorBase;
+      const { status } = flagValue(v, s.refLow, s.refHigh);
+      return status === 'HIGH' ? '#ef4444' : status === 'LOW' ? '#3b82f6' : colorBase;
+    });
     return {
       label: `${s.name}${s.unit ? ' (' + s.unit + ')' : ''}`,
-      data: labels.map(d => valueMap.get(d) ?? null),
+      data: values,
       borderColor: colorBase,
       backgroundColor: colorBase + '14',
       borderWidth: 2,
+      pointBackgroundColor: pointColors,
+      pointBorderColor:     pointColors,
       pointRadius: 4, pointHoverRadius: 7,
       tension: 0.3, fill: false,
       spanGaps: true,
@@ -323,6 +367,24 @@ function multiLineConfig(seriesArr, yLabel) {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { position: 'bottom', labels: { font: { size: 11 }, color: '#64748b', boxWidth: 14 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const s = seriesArr[ctx.datasetIndex];
+              if (!s) return ctx.dataset.label;
+              const val = ctx.parsed.y;
+              if (val == null) return null;
+              const { status } = flagValue(val, s.refLow, s.refHigh);
+              const ref = s.refLow != null && s.refHigh != null ? ` [ref: ${s.refLow}–${s.refHigh}]`
+                : s.refHigh != null ? ` [ref: <${s.refHigh}]`
+                : s.refLow  != null ? ` [ref: >${s.refLow}]` : '';
+              const goalVal = state.goals?.[normName(s.name)];
+              const goalStr = goalVal != null ? ` [goal: ${goalVal}]` : '';
+              const flag = status !== 'NORMAL' ? ` ⚑ ${status}` : '';
+              return `${ctx.dataset.label}: ${val}${ref}${goalStr}${flag}`;
+            },
+          },
+        },
       },
       scales: {
         x: { grid: { color: 'rgba(0,0,0,.05)' }, ticks: { color: '#64748b', font: { size: 11 } } },
@@ -392,6 +454,21 @@ function dualAxisConfig(series1, series2) {
   };
 }
 
+// Appends a green dashed goal line to any chart config that has a matching goal in state
+function addGoalLine(cfg, markerName, unit, yAxisID = 'y') {
+  const goal = state.goals?.[normName(markerName)];
+  if (goal == null || !cfg?.data?.datasets) return;
+  cfg.data.datasets.push({
+    label: `${markerName} Goal: ${goal}${unit ? ' ' + unit : ''}`,
+    data: cfg.data.labels.map(() => goal),
+    borderColor: 'rgba(34,197,94,.85)',
+    borderDash: [8, 5],
+    borderWidth: 2,
+    pointRadius: 0, pointHoverRadius: 0,
+    fill: false, yAxisID,
+  });
+}
+
 // ── Partial extraction notice ─────────────────────────────────────────────────
 function _partialNotice(panels, nameSet) {
   const relevant = nameSet
@@ -433,7 +510,18 @@ function initRenalCharts(panels) {
   const readings = getMarkerReadings(panels, RENAL_SET);
   const creat = findSeries(readings, 'creatinine');
   const egfr  = findSeries(readings, 'egfr', 'gfr');
-  if (creat && egfr) initChart('chart-renal-dual', dualAxisConfig(creat, egfr));
+  if (creat && egfr) {
+    const cfg = dualAxisConfig(creat, egfr);
+    addGoalLine(cfg, creat.name, creat.unit, 'y');
+    addGoalLine(cfg, egfr.name,  egfr.unit,  'y2');
+    initChart('chart-renal-dual', cfg);
+  } else if (creat || egfr) {
+    const s = creat ?? egfr;
+    initChart('chart-renal-dual', getChartConfig(s.name, s.readings, {
+      refLow: s.refLow, refHigh: s.refHigh, unit: s.unit,
+      goal: state.goals?.[normName(s.name)],
+    }));
+  }
 }
 
 function renderLipidTab(panels) {
@@ -462,7 +550,8 @@ function initLipidCharts(panels) {
   const trig = findSeries(readings, 'triglyceride');
   if (primary.length) initChart('chart-lipid-main', multiLineConfig(primary, 'mg/dL'));
   if (trig) initChart('chart-lipid-trig', getChartConfig(
-    trig.name, trig.readings, { refLow: trig.refLow, refHigh: trig.refHigh, unit: trig.unit }
+    trig.name, trig.readings, { refLow: trig.refLow, refHigh: trig.refHigh, unit: trig.unit,
+      goal: state.goals?.[normName(trig.name)] }
   ));
 }
 
@@ -523,7 +612,8 @@ function initBodyCompCharts(panels) {
 
   const weight = findSeries(scaleAll, 'weight', 'bmi');
   if (weight) initChart('chart-scale-weight', getChartConfig(
-    weight.name, weight.readings, { refLow: weight.refLow, refHigh: weight.refHigh, unit: weight.unit }
+    weight.name, weight.readings, { refLow: weight.refLow, refHigh: weight.refHigh, unit: weight.unit,
+      goal: state.goals?.[normName(weight.name)] }
   ));
 }
 
@@ -616,7 +706,8 @@ function initHormonesCharts(panels) {
   } else if (test || e2) {
     const s = test ?? e2;
     const cfg = withDosageLines(
-      getChartConfig(s.name, s.readings, { refLow: s.refLow, refHigh: s.refHigh, unit: s.unit })
+      getChartConfig(s.name, s.readings, { refLow: s.refLow, refHigh: s.refHigh, unit: s.unit,
+        goal: state.goals?.[normName(s.name)] })
     );
     cfg.plugins = [DOSAGE_LINES_PLUGIN];
     initChart('chart-hormone-main', cfg);
@@ -627,6 +718,97 @@ function initHormonesCharts(panels) {
     .filter(s => !MAIN_KEYS.some(k => normName(s.name).includes(k)))
     .slice(0, 4);
   if (others.length) initChart('chart-hormone-other', multiLineConfig(others));
+}
+
+// ── CBC tab ───────────────────────────────────────────────────────────────────
+function renderCBCTab(panels) {
+  const readings   = getMarkerReadings(panels, CBC_SET);
+  const hasHgbHct  = !!(findSeries(readings, 'hemoglobin', 'hgb') || findSeries(readings, 'hematocrit', 'hct'));
+  const hasWBC     = !!(findSeries(readings, 'wbc', 'white blood'));
+  const hasPlt     = !!(findSeries(readings, 'platelet', 'plt'));
+  const hasCharts  = hasHgbHct || hasWBC || hasPlt;
+  return `
+<div class="tab-pane">
+  ${_partialNotice(panels, CBC_SET)}
+  ${hasHgbHct ? chartSection('Hemoglobin & Hematocrit', 'chart-cbc-hgb') : ''}
+  ${hasWBC    ? chartSection('White Blood Cells (WBC)',  'chart-cbc-wbc') : ''}
+  ${hasPlt    ? chartSection('Platelets',                'chart-cbc-plt') : ''}
+  <h2 class="pane-title" style="margin-top:${hasCharts ? 36 : 0}px">CBC Markers — All Data</h2>
+  ${dataTableHTML(readings)}
+</div>`;
+}
+
+function initCBCCharts(panels) {
+  const readings = getMarkerReadings(panels, CBC_SET);
+  const hgb = findSeries(readings, 'hemoglobin', 'hgb');
+  const hct = findSeries(readings, 'hematocrit', 'hct');
+  const wbc = findSeries(readings, 'wbc', 'white blood');
+  const plt = findSeries(readings, 'platelet', 'plt');
+
+  if (hgb && hct) {
+    const cfg = dualAxisConfig(hgb, hct);
+    addGoalLine(cfg, hgb.name, hgb.unit, 'y');
+    addGoalLine(cfg, hct.name, hct.unit, 'y2');
+    initChart('chart-cbc-hgb', cfg);
+  } else if (hgb || hct) {
+    const s = hgb ?? hct;
+    initChart('chart-cbc-hgb', getChartConfig(s.name, s.readings, {
+      refLow: s.refLow, refHigh: s.refHigh, unit: s.unit,
+      goal: state.goals?.[normName(s.name)], color: '#ef4444',
+    }));
+  }
+  if (wbc) initChart('chart-cbc-wbc', getChartConfig(wbc.name, wbc.readings, {
+    refLow: wbc.refLow, refHigh: wbc.refHigh, unit: wbc.unit,
+    goal: state.goals?.[normName(wbc.name)], color: '#3b82f6',
+  }));
+  if (plt) initChart('chart-cbc-plt', getChartConfig(plt.name, plt.readings, {
+    refLow: plt.refLow, refHigh: plt.refHigh, unit: plt.unit,
+    goal: state.goals?.[normName(plt.name)], color: '#a855f7',
+  }));
+}
+
+// ── Thyroid tab ───────────────────────────────────────────────────────────────
+function renderThyroidTab(panels) {
+  const readings = getMarkerReadings(panels, THYROID_SET);
+  const hasTSH   = !!(findSeries(readings, 'tsh'));
+  const hasT4T3  = !!(findSeries(readings, 'free t4', 'ft4') || findSeries(readings, 'free t3', 'ft3'));
+  const hasCharts = hasTSH || hasT4T3;
+  return `
+<div class="tab-pane">
+  ${_partialNotice(panels, THYROID_SET)}
+  ${hasTSH  ? chartSection('TSH (Thyroid Stimulating Hormone)', 'chart-thyroid-tsh')  : ''}
+  ${hasT4T3 ? chartSection('Free T4 & Free T3',                 'chart-thyroid-t4t3') : ''}
+  <h2 class="pane-title" style="margin-top:${hasCharts ? 36 : 0}px">Thyroid Markers — All Data</h2>
+  ${dataTableHTML(readings)}
+</div>`;
+}
+
+function initThyroidCharts(panels) {
+  const readings = getMarkerReadings(panels, THYROID_SET);
+  const tsh = findSeries(readings, 'tsh');
+  const ft4 = findSeries(readings, 'free t4', 'ft4');
+  const ft3 = findSeries(readings, 'free t3', 'ft3');
+  if (tsh) initChart('chart-thyroid-tsh', getChartConfig(tsh.name, tsh.readings, {
+    refLow: tsh.refLow, refHigh: tsh.refHigh, unit: tsh.unit,
+    goal: state.goals?.[normName(tsh.name)], color: '#f59e0b',
+  }));
+  const t4t3 = [ft4, ft3].filter(Boolean);
+  if (t4t3.length) initChart('chart-thyroid-t4t3', multiLineConfig(t4t3));
+}
+
+// ── Reinit only the charts for the current tab (used after goal changes) ──────
+function reinitActiveCharts() {
+  destroyAllCharts();
+  const { panels, activeTab } = _dash;
+  switch (activeTab) {
+    case 'renal':     initRenalCharts(panels);    break;
+    case 'lipid':     initLipidCharts(panels);    break;
+    case 'hepatic':   initHepaticCharts(panels);  break;
+    case 'hormones':  initHormonesCharts(panels); break;
+    case 'cbc':       initCBCCharts(panels);      break;
+    case 'thyroid':   initThyroidCharts(panels);  break;
+    case 'bodycomp':  initBodyCompCharts(panels); break;
+  }
 }
 
 // ── Active tab render + init ───────────────────────────────────────────────────
@@ -641,8 +823,10 @@ function renderActiveTab() {
     case 'renal':     content.innerHTML = renderRenalTab(panels);     initRenalCharts(panels);    break;
     case 'lipid':     content.innerHTML = renderLipidTab(panels);     initLipidCharts(panels);    break;
     case 'hepatic':   content.innerHTML = renderHepaticTab(panels);   initHepaticCharts(panels);   break;
-    case 'hormones':  content.innerHTML = renderHormonesTab(panels);  initHormonesCharts(panels);  break;
-    case 'bodycomp':  content.innerHTML = renderBodyCompTab(panels);  initBodyCompCharts(panels);  break;
+    case 'hormones':  content.innerHTML = renderHormonesTab(panels);  initHormonesCharts(panels); break;
+    case 'cbc':       content.innerHTML = renderCBCTab(panels);       initCBCCharts(panels);      break;
+    case 'thyroid':   content.innerHTML = renderThyroidTab(panels);   initThyroidCharts(panels);  break;
+    case 'bodycomp':  content.innerHTML = renderBodyCompTab(panels);  initBodyCompCharts(panels); break;
     case 'imaging':   content.innerHTML = renderImagingTab(panels);   break;
   }
 }
@@ -702,6 +886,21 @@ function renderDashboard() {
 
   // Export button — exportPDF() is defined in exporter.js
   document.getElementById('exportBtn').addEventListener('click', () => exportPDF());
+
+  // Goal input — update state.goals and reinit charts when a goal value changes
+  document.getElementById('dashContent').addEventListener('change', (e) => {
+    const input = e.target.closest('.sc-goal-input');
+    if (!input) return;
+    const marker = input.dataset.markerGoal;
+    if (!marker) return;
+    const val = parseFloat(input.value);
+    if (isNaN(val) || input.value.trim() === '') {
+      delete state.goals[marker];
+    } else {
+      state.goals[marker] = val;
+    }
+    reinitActiveCharts(); // redraws charts in the current tab with updated goal line
+  });
 
   // Back button — clears state and returns to upload screen with transition
   document.getElementById('backBtn').addEventListener('click', () => {

@@ -683,6 +683,42 @@ body.drag-active { user-select: none; }
 .trend-dn   { color: var(--red); }
 .trend-flat { color: var(--text-muted); }
 
+/* ── Goal input on summary cards ─────────────────────────────────────────────── */
+.sc-goal-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 1px 0;
+}
+.sc-goal-label {
+  font-size: .7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  flex-shrink: 0;
+  min-width: 28px;
+}
+.sc-goal-input {
+  width: 62px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: .8125rem;
+  padding: 3px 6px;
+  transition: border-color .15s;
+}
+.sc-goal-input:focus {
+  outline: none;
+  border-color: rgba(34,197,94,.8);
+  box-shadow: 0 0 0 2px rgba(34,197,94,.12);
+}
+.sc-goal-unit {
+  font-size: .75rem;
+  color: var(--text-muted);
+}
+
 /* ── Flag badges (in tables) ─────────────────────────────────────────────────── */
 .flag-badge {
   display: inline-block;

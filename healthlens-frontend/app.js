@@ -17,6 +17,8 @@ const DOC_TYPES = [
   { value: 'lipid_panel', label: 'Lipid Panel' },
   { value: 'testosterone', label: 'Testosterone' },
   { value: 'estradiol',   label: 'Estradiol (E2)' },
+  { value: 'thyroid',     label: 'Thyroid Panel' },
+  { value: 'cbc',         label: 'CBC (Blood Count)' },
   { value: 'dexa',        label: 'DEXA Scan' },
   { value: 'scale',       label: 'Scale / Weight Log' },
   { value: 'ctca',        label: 'CTCA / Imaging' },
@@ -76,6 +78,7 @@ const state = {
   files: new Map(),   // id → FileEntry
   privacyMode: false,
   exporting: false,   // true while PDF export is running — blocks privacy toggle
+  goals: {},          // normName(markerName) → goal value (number); persists across file uploads
 };
 
 // FileEntry shape:
@@ -238,6 +241,22 @@ const MANUAL_FIELDS = {
   estradiol: [
     {name:'Estradiol (E2)', unit:'pg/mL', refLow:10, refHigh:40},
     {name:'SHBG',           unit:'nmol/L',refLow:10, refHigh:57},
+  ],
+  thyroid: [
+    {name:'TSH',           unit:'mIU/L', refLow:0.4,  refHigh:4.0 },
+    {name:'Free T4',       unit:'ng/dL', refLow:0.8,  refHigh:1.8 },
+    {name:'Free T3',       unit:'pg/mL', refLow:2.3,  refHigh:4.2 },
+    {name:'Reverse T3',    unit:'ng/dL', refLow:9.2,  refHigh:24.1},
+    {name:'TPO Antibodies',unit:'IU/mL', refLow:null, refHigh:34  },
+  ],
+  cbc: [
+    {name:'WBC',           unit:'K/uL',  refLow:4.5,  refHigh:11.0},
+    {name:'RBC',           unit:'M/uL',  refLow:4.5,  refHigh:5.9 },
+    {name:'Hemoglobin',    unit:'g/dL',  refLow:13.5, refHigh:17.5},
+    {name:'Hematocrit',    unit:'%',     refLow:41,   refHigh:53  },
+    {name:'Platelets',     unit:'K/uL',  refLow:150,  refHigh:400 },
+    {name:'Neutrophils',   unit:'%',     refLow:40,   refHigh:70  },
+    {name:'Lymphocytes',   unit:'%',     refLow:20,   refHigh:40  },
   ],
   // legacy key — kept so old in-session entries still get a form
   hormones: [

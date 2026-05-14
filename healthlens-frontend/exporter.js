@@ -361,6 +361,28 @@ async function _hormoneImgs(panels) {
   return [{ title: 'Testosterone & Estradiol (E2)', img: await _captureChart(config) }];
 }
 
+async function _cbcImgs(panels) {
+  const readings = getMarkerReadings(panels, CBC_SET);
+  const hgb = findSeries(readings, 'hemoglobin', 'hgb');
+  const hct = findSeries(readings, 'hematocrit', 'hct');
+  if (!hgb && !hct) return [];
+  const config = (hgb && hct)
+    ? dualAxisConfig(hgb, hct)
+    : getChartConfig((hgb ?? hct).name, (hgb ?? hct).readings, {
+        refLow: (hgb ?? hct).refLow, refHigh: (hgb ?? hct).refHigh, unit: (hgb ?? hct).unit, color: '#ef4444',
+      });
+  return [{ title: 'Hemoglobin & Hematocrit', img: await _captureChart(config) }];
+}
+
+async function _thyroidImgs(panels) {
+  const readings = getMarkerReadings(panels, THYROID_SET);
+  const tsh = findSeries(readings, 'tsh');
+  if (!tsh) return [];
+  return [{ title: 'TSH (Thyroid Stimulating Hormone)', img: await _captureChart(
+    getChartConfig(tsh.name, tsh.readings, { refLow: tsh.refLow, refHigh: tsh.refHigh, unit: tsh.unit, color: '#f59e0b' })
+  )}];
+}
+
 async function _bodyCompImgs(panels) {
   const result = [];
   const dexaM  = getMarkerReadings(panels.filter(p => p.documentType === 'dexa'), null);
@@ -400,6 +422,16 @@ async function _addSections(panels) {
       title: 'Hormones',
       chartFn: _hormoneImgs,
       getMap: (p) => getMarkerReadings(p, HORMONE_SET),
+    },
+    {
+      title: 'CBC (Blood Count)',
+      chartFn: _cbcImgs,
+      getMap: (p) => getMarkerReadings(p, CBC_SET),
+    },
+    {
+      title: 'Thyroid',
+      chartFn: _thyroidImgs,
+      getMap: (p) => getMarkerReadings(p, THYROID_SET),
     },
     {
       title: 'Body Composition',
