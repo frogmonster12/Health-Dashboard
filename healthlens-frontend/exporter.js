@@ -229,7 +229,7 @@ function _buildRows(markerMap) {
         dateKey: r.date ?? '',      // original date for annotation lookup
         name: acc.name,
         value: String(r.value),
-        unit: acc.unit || '—',
+        unit: acc.unit || (normName(acc.name) === 'cac score' ? 'Agatston' : '—'),
         ref, status,
       });
     }

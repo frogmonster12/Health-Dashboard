@@ -120,6 +120,7 @@ Rules:
 - If a field is not found in the document, use null.
 - Do not add markers that are not explicitly present in the document text.
 - If the text does not contain actual laboratory values with numeric results, return an empty markers array. Do not invent or estimate values.
+- CAC Score (Coronary Artery Calcium Score) is measured in Agatston units. If the document does not specify a unit for CAC Score, always set "unit" to "Agatston".
 
 Document type hint: ${documentType}
 

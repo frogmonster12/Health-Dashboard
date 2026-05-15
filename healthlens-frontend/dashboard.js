@@ -307,7 +307,7 @@ function dataTableHTML(markerMap) {
           ${note ? `<span class="ann-text">${esc(note)}</span>` : ''}
         </td>
         <td class="cell-val">${r.value}</td>
-        <td>${esc(r.unit || '—')}</td>
+        <td>${esc(r.unit || (normName(r.name) === 'cac score' ? 'Agatston' : '—'))}</td>
         <td>${esc(r.refText)}</td>
         <td>${flagBadgeHTML(r.status)}</td>
         <td><button class="ann-btn" data-ann-key="${esc(r.annKey)}" title="${note ? 'Edit note' : 'Add note'}">${note ? '💬' : '✎'}</button></td>
