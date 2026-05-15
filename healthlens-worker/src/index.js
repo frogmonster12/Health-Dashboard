@@ -119,6 +119,7 @@ Rules:
 - "extractionConfidence" is "high" if most values were cleanly parsed, "medium" if some were ambiguous, "low" if the document was difficult to parse.
 - If a field is not found in the document, use null.
 - Do not add markers that are not explicitly present in the document text.
+- If the text does not contain actual laboratory values with numeric results, return an empty markers array. Do not invent or estimate values.
 
 Document type hint: ${documentType}
 
@@ -263,6 +264,31 @@ async function handleAnalyze(request, env, origin) {
 
   const truncated = textContent.slice(0, MAX_TEXT_CHARS);
   const wasTruncated = textContent.length > MAX_TEXT_CHARS;
+
+  // ── Pre-flight: reject documents that contain no recognizable lab values ──────
+  // This catches wrong-file uploads (photos, consent forms, invoices) before
+  // spending an AI call on them.
+  const LAB_VALUE_RE = /\d+\.?\d*\s*(mg\/dL|g\/dL|mmol\/L|U\/L|nmol\/L|%|mL\/min|K\/uL|mIU\/L|ng\/dL|pg\/mL|IU\/mL)/i;
+  if (!LAB_VALUE_RE.test(truncated)) {
+    log("analyze", "pre-flight failed — no lab values detected, skipping AI", { docType: documentType });
+    return jsonResponse({
+      ok: true,
+      data: {
+        documentType,
+        drawDate:             null,
+        patientName:          null,
+        dob:                  null,
+        address:              null,
+        physicianName:        null,
+        facilityName:         null,
+        markers:              [],
+        extractionConfidence: "low",
+        parseWarnings:        [],
+        extractionWarning:    "No recognizable lab values found in this document. Please verify you uploaded the correct file.",
+        sourceFile:           typeof fileName === "string" ? fileName : null,
+      },
+    }, 200, origin);
+  }
 
   log("analyze", "start", {
     docType: documentType,

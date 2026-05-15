@@ -1148,6 +1148,12 @@ body.drag-active { user-select: none; }
   color: var(--amber);
   font-weight: 500;
 }
+.card-extraction-warning {
+  font-size: .8125rem;
+  color: var(--amber);
+  font-weight: 500;
+  line-height: 1.45;
+}
 .date-missing-input {
   border: 1px solid var(--amber);
   border-radius: var(--r);

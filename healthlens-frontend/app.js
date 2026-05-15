@@ -437,14 +437,17 @@ function checkAllDone() {
   const entries = [...state.files.values()];
   if (!entries.length) return;
   if (!entries.every(e => e.phase === 'done' || e.phase === 'error')) return;
-  const anyDone = entries.some(e => e.phase === 'done');
+  // A doc that returned extractionWarning has no markers — exclude from "done" count
+  const anyDone = entries.some(e => e.phase === 'done' && !e.result?.extractionWarning);
   if (!anyDone) return;
 
-  // Re-render cards so date inputs appear for panels with missing dates
+  // Re-render cards so date inputs / warnings appear
   renderFileList();
   updateAnalyzeBtn(); // morphs to "View Dashboard →"
 
-  const missingDates = entries.filter(e => e.phase === 'done' && !e.result?.drawDate);
+  const missingDates = entries.filter(e =>
+    e.phase === 'done' && !e.result?.extractionWarning && !e.result?.drawDate
+  );
   if (missingDates.length === 0) {
     // Everything has dates — go straight to dashboard
     switchView(renderDashboard);
@@ -531,9 +534,13 @@ function cardHTML(entry) {
   if (entry.showManual) {
     bottomContent = manualFormHTML(entry);
   } else if (entry.phase === 'done') {
-    const count = entry.result?.markers?.length ?? 0;
+    const count   = entry.result?.markers?.length ?? 0;
     const dateStr = entry.result?.drawDate;
-    if (!dateStr) {
+    const warning = entry.result?.extractionWarning;
+    if (warning) {
+      // Pre-flight or AI returned no values — show warning, skip dashboard for this doc
+      bottomContent = `<span class="card-extraction-warning">⚠ ${esc(warning)}</span>`;
+    } else if (!dateStr) {
       bottomContent = `
         <div class="done-date-row">
           <span class="done-summary">${count} marker${count !== 1 ? 's' : ''} extracted &nbsp;·&nbsp; <span class="date-missing-label">date not found — enter to plot on charts</span></span>
@@ -561,7 +568,9 @@ function cardHTML(entry) {
   <div class="card-top">
     <span class="file-badge ${badge.cls}">${badge.label}</span>
     <span class="file-name" title="${esc(entry.file.name)}">${esc(entry.file.name)}</span>
-    ${entry.phase === 'done' && !entry.result?.drawDate
+    ${entry.phase === 'done' && entry.result?.extractionWarning
+      ? `<span class="card-status status-warn">⚠ No values found</span>`
+      : entry.phase === 'done' && !entry.result?.drawDate
       ? `<span class="card-status status-warn">⚠ Date missing</span>`
       : statusHTML(entry.phase)}
     ${removable
