@@ -254,7 +254,8 @@ function summaryCardHTML(card) {
     : card.refHigh != null ? `< ${card.refHigh}`
     : card.refLow  != null ? `> ${card.refLow}` : '—';
   return `
-<div class="sc sc-${card.status.toLowerCase()} sc-sev-${card.severity}" role="article">
+<div class="sc sc-${card.status.toLowerCase()} sc-sev-${card.severity}" role="article"
+     data-marker-key="${normName(card.name)}">
   <div class="sc-name">${esc(card.name)}</div>
   <div class="sc-value">${card.value} <span class="sc-unit">${esc(card.unit)}</span></div>
   <div class="sc-ref">Ref: ${esc(refText)}</div>
@@ -269,6 +270,7 @@ function summaryCardHTML(card) {
   <div class="sc-footer">
     <span class="sev-badge sev-${card.severity}">${card.severity}</span>
     <span class="trend-label ${trendCls}" title="${card.trend}">${trendArrow}</span>
+    <button class="sc-expand-btn" title="Show history" aria-label="Show history for ${esc(card.name)}">▾</button>
   </div>
 </div>`;
 }
@@ -893,6 +895,47 @@ function reinitActiveCharts() {
   }
 }
 
+// ── Card expand: build historical detail HTML ─────────────────────────────────
+function buildCardDetail(markerKey) {
+  const allMarkers = getMarkerReadings(_dash.panels, null);
+  const series     = allMarkers.get(markerKey);
+  if (!series?.readings?.length) return '<p class="sc-detail-empty">No historical data.</p>';
+
+  const sorted = series.readings.slice().sort((a, b) =>
+    !a.date ? 1 : !b.date ? -1 : b.date.localeCompare(a.date)
+  );
+
+  const refText = series.refLow != null && series.refHigh != null
+    ? `${series.refLow}–${series.refHigh}${series.unit ? ' ' + series.unit : ''}`
+    : series.refHigh != null ? `< ${series.refHigh}${series.unit ? ' ' + series.unit : ''}`
+    : series.refLow  != null ? `> ${series.refLow}${series.unit ? ' ' + series.unit : ''}`
+    : 'Not specified';
+
+  const trend    = getTrend(sorted.map(r => r.value).reverse(), series.name); // pass oldest→newest
+  const trendStr = trend === 'improving' ? '↗ Improving' : trend === 'worsening' ? '↘ Worsening' : '→ Stable';
+  const trendCls = trend === 'improving' ? 'trend-up'   : trend === 'worsening' ? 'trend-dn'     : 'trend-flat';
+
+  const rows = sorted.map(r => {
+    const { status } = flagValue(r.value, series.refLow, series.refHigh);
+    const fc = status === 'HIGH' ? 'flag-h' : status === 'LOW' ? 'flag-l' : 'flag-n';
+    return `<tr>
+      <td>${esc(r.date ?? '—')}</td>
+      <td class="sc-dt-val">${r.value}<span class="sc-dt-unit">${series.unit ? ' ' + esc(series.unit) : ''}</span></td>
+      <td><span class="flag-badge ${fc}">${status}</span></td>
+    </tr>`;
+  }).join('');
+
+  return `
+<div class="sc-detail-meta">
+  <span>Ref: ${esc(refText)}</span>
+  <span class="trend-label ${trendCls}">${trendStr}</span>
+</div>
+<table class="sc-detail-table">
+  <thead><tr><th>Date</th><th>Value</th><th>Flag</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>`;
+}
+
 // ── Active tab render + init ───────────────────────────────────────────────────
 function renderActiveTab() {
   destroyAllCharts();
@@ -918,6 +961,9 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tab === tabId);
   });
+  // Ensure the active tab button is visible on mobile without manual scrolling
+  const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+  if (activeBtn) activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'nearest' });
   renderActiveTab();
 }
 
@@ -947,12 +993,14 @@ function renderDashboard() {
     <button class="export-btn" id="exportBtn" type="button" data-tip="Export PDF (E)">Export PDF</button>
   </div>
 
-  <nav class="tab-bar" id="tabBar" role="tablist">
-    ${tabs.map((t, i) =>
-      `<button class="tab-btn${i === 0 ? ' active' : ''}" data-tab="${t.id}" role="tab"
-         aria-selected="${i === 0}">${t.label}</button>`
-    ).join('')}
-  </nav>
+  <div class="tab-bar-wrapper" id="tabBarWrapper">
+    <nav class="tab-bar" id="tabBar" role="tablist">
+      ${tabs.map((t, i) =>
+        `<button class="tab-btn${i === 0 ? ' active' : ''}" data-tab="${t.id}" role="tab"
+           aria-selected="${i === 0}">${t.label}</button>`
+      ).join('')}
+    </nav>
+  </div>
 
   <div class="dash-content" id="dashContent"></div>
 
@@ -966,13 +1014,38 @@ function renderDashboard() {
     if (btn) switchTab(btn.dataset.tab);
   });
 
+  // Tab scroll gradient — hide ::after when no more content is hidden to the right
+  const tabBar    = document.getElementById('tabBar');
+  const tabWrapper = document.getElementById('tabBarWrapper');
+  const syncGradient = () => {
+    const atEnd = tabBar.scrollLeft + tabBar.clientWidth >= tabBar.scrollWidth - 4;
+    tabWrapper.classList.toggle('scrolled-end', atEnd);
+  };
+  tabBar.addEventListener('scroll', syncGradient, { passive: true });
+  syncGradient(); // run once on mount so all-tabs-visible case hides the fade immediately
+
   // Export button — exportPDF() is defined in exporter.js
   document.getElementById('exportBtn').addEventListener('click', () => exportPDF());
 
-  // Annotation buttons — open note modal on any data table row
+  // Delegated click handler — annotations and card expand buttons
   document.getElementById('dashContent').addEventListener('click', (e) => {
-    const btn = e.target.closest('.ann-btn');
-    if (btn) openAnnotationModal(btn.dataset.annKey);
+    // Annotation note modal
+    const annBtn = e.target.closest('.ann-btn');
+    if (annBtn) { openAnnotationModal(annBtn.dataset.annKey); return; }
+
+    // Summary card expand/collapse — build detail lazily on first open
+    const expandBtn = e.target.closest('.sc-expand-btn');
+    if (expandBtn) {
+      const sc         = expandBtn.closest('.sc');
+      const isExpanded = sc.classList.toggle('expanded');
+      expandBtn.textContent = isExpanded ? '▴' : '▾';
+      if (isExpanded && !sc.querySelector('.sc-detail')) {
+        const detail = document.createElement('div');
+        detail.className = 'sc-detail';
+        detail.innerHTML = buildCardDetail(sc.dataset.markerKey);
+        sc.appendChild(detail);
+      }
+    }
   });
 
   // Goal input — one source of truth: userGoals.

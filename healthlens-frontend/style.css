@@ -580,6 +580,25 @@ body.drag-active { user-select: none; }
 .pm-dates  { color: var(--slate-500); font-size: .8125rem; }
 
 /* ── Tab bar ─────────────────────────────────────────────────────────────────── */
+
+/* Wrapper provides the gradient overlay; the nav scrolls inside it */
+.tab-bar-wrapper {
+  position: relative;
+}
+.tab-bar-wrapper::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 40px;
+  background: linear-gradient(to right, transparent, var(--navy));
+  pointer-events: none;
+  transition: opacity .2s;
+}
+/* Hide gradient once the user has scrolled all the way right */
+.tab-bar-wrapper.scrolled-end::after { display: none; }
+
 .tab-bar {
   display: flex;
   gap: 2px;
@@ -587,6 +606,7 @@ body.drag-active { user-select: none; }
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  scroll-snap-type: x mandatory;
 }
 .tab-bar::-webkit-scrollbar { display: none; }
 
@@ -606,6 +626,7 @@ body.drag-active { user-select: none; }
 }
 .tab-btn:hover  { color: var(--teal); }
 .tab-btn.active { color: var(--teal); border-bottom-color: var(--teal); }
+.tab-btn { scroll-snap-align: start; }
 
 /* ── Dash content area ────────────────────────────────────────────────────────── */
 .dash-content { padding-top: 24px; }
@@ -682,6 +703,69 @@ body.drag-active { user-select: none; }
 .trend-up   { color: var(--green-dark); }
 .trend-dn   { color: var(--red); }
 .trend-flat { color: var(--text-muted); }
+
+/* ── Summary card expand button ──────────────────────────────────────────────── */
+.sc-expand-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: .875rem;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin-left: auto;
+  transition: color .12s;
+}
+.sc-expand-btn:hover { color: var(--teal); }
+
+/* ── Expanded card historical detail ─────────────────────────────────────────── */
+.sc-detail {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.sc-detail-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: .75rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sc-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .8rem;
+}
+.sc-detail-table th {
+  text-align: left;
+  color: var(--text-muted);
+  font-size: .7rem;
+  font-weight: 600;
+  padding: 3px 6px 5px;
+  border-bottom: 1px solid var(--border);
+}
+.sc-detail-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--surface-alt);
+  color: var(--text-secondary);
+}
+.sc-detail-table tr:last-child td { border-bottom: none; }
+
+.sc-dt-val  { font-weight: 600; color: var(--text-primary); }
+.sc-dt-unit { font-weight: 400; color: var(--text-muted); font-size: .7rem; }
+
+.sc-detail-empty {
+  font-size: .8rem;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 4px 0;
+}
 
 /* ── Goal input on summary cards ─────────────────────────────────────────────── */
 .sc-goal-row {
