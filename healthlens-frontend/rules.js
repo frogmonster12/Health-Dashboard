@@ -63,8 +63,34 @@ function flagValue(value, refLow, refHigh) {
   return { status: 'NORMAL', delta: 0 };
 }
 
+// ── Marker-specific severity config ───────────────────────────────────────────
+// Markers listed here use absolute value thresholds instead of the generic
+// percentage-delta approach, which breaks when there is no meaningful reference
+// range to compute a delta against (e.g. CAC Score: refHigh = 0).
+const MARKER_THRESHOLDS = {
+  'cac score':                 { higherIsBad: true, thresholds: { mild: 1,   moderate: 100, critical: 400 } },
+  'coronary artery calcium':   { higherIsBad: true, thresholds: { mild: 1,   moderate: 100, critical: 400 } },
+  'calcium score':             { higherIsBad: true, thresholds: { mild: 1,   moderate: 100, critical: 400 } },
+};
+
 // ── getSeverity ────────────────────────────────────────────────────────────────
-function getSeverity(delta) {
+// markerName and value are optional — when supplied, marker-specific config
+// takes precedence over the generic percentage-delta calculation.
+function getSeverity(delta, markerName, value) {
+  if (markerName != null && value != null) {
+    const cfg = MARKER_THRESHOLDS[String(markerName).toLowerCase().trim()];
+    if (cfg) {
+      const v = Number(value);
+      if (!isNaN(v)) {
+        const { thresholds: t } = cfg;
+        if (v >= t.critical) return 'critical';
+        if (v >= t.moderate) return 'moderate';
+        if (v >= t.mild)     return 'mild';
+        return 'normal';
+      }
+    }
+  }
+  // Generic percentage-delta fallback for all other markers
   if (delta >= 50) return 'critical';
   if (delta >= 10) return 'moderate';
   if (delta >  0)  return 'mild';
@@ -121,7 +147,7 @@ function buildSummaryCards(allPanels) {
   for (const acc of markerMap.values()) {
     const latest          = acc.readings.at(-1);
     const { status, delta } = flagValue(latest.value, acc.refLow, acc.refHigh);
-    const severity        = getSeverity(delta);
+    const severity        = getSeverity(delta, acc.name, latest.value);
     const trend           = getTrend(acc.readings.map(r => r.value), acc.name);
     cards.push({
       name: acc.name, value: latest.value, unit: acc.unit,

@@ -536,7 +536,9 @@ function _addImagingSection(panels) {
     stats.forEach((s, i) => {
       const bx = PM + i * (BW + 6), by = _cy;
       const latest = s.readings.at(-1);
-      const { status } = flagValue(latest?.value, s.refLow, s.refHigh);
+      const { status, delta } = flagValue(latest?.value, s.refLow, s.refHigh);
+      // getSeverity from rules.js — uses MARKER_THRESHOLDS for CAC Score etc.
+      const severity = getSeverity(delta, s.name, latest?.value);
       const sc = status === 'HIGH' ? KC.red : status === 'LOW' ? KC.blue : KC.green;
       _pdf.setFillColor(...KC.white); _pdf.setDrawColor(...KC.border); _pdf.setLineWidth(0.25);
       _pdf.roundedRect(bx, by, BW, 22, 2, 2, 'FD');
@@ -545,6 +547,9 @@ function _addImagingSection(panels) {
       _f(6.5, 'bold', KC.muted); _pdf.text(s.name.toUpperCase().slice(0, 22), bx + 5, by + 7);
       _f(14, 'bold', KC.dark);   _pdf.text(String(latest?.value ?? '—'), bx + 5, by + 16);
       _f(7,  'normal', KC.muted);_pdf.text(s.unit ?? '', bx + 5 + _pdf.getTextWidth(String(latest?.value ?? '')) + 0.5, by + 16);
+      if (severity !== 'normal') {
+        _f(6.5, 'bold', sc); _pdf.text(severity.toUpperCase(), bx + BW - 4, by + 20, { align: 'right' });
+      }
     });
     _cy += 28;
   }

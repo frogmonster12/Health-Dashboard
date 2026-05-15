@@ -811,6 +811,7 @@ body.drag-active { user-select: none; }
   flex-direction: column;
   gap: 6px;
 }
+.stat-badges { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
 .stat-label { font-size: .8125rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
 .stat-value { font-size: 2rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
 .stat-unit  { font-size: .875rem; font-weight: 400; color: var(--text-muted); }

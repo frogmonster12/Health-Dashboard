@@ -699,13 +699,23 @@ function renderImagingTab(panels) {
     normName(s.name).includes('stenosis') || normName(s.name).includes('artery')
   );
 
-  const statCard = (label, s) => s ? `
+  const statCard = (label, s) => {
+    if (!s) return '';
+    const latest = s.readings.at(-1);
+    const { status, delta } = flagValue(latest?.value, s.refLow, s.refHigh);
+    // getSeverity from rules.js — uses MARKER_THRESHOLDS for CAC Score etc.
+    const severity = getSeverity(delta, s.name, latest?.value);
+    return `
 <div class="stat-card">
   <div class="stat-label">${esc(label)}</div>
-  <div class="stat-value">${s.readings.at(-1)?.value ?? '—'} <span class="stat-unit">${esc(s.unit)}</span></div>
+  <div class="stat-value">${latest?.value ?? '—'} <span class="stat-unit">${esc(s.unit)}</span></div>
   ${s.refHigh != null ? `<div class="stat-ref">Ref: < ${s.refHigh}</div>` : ''}
-  ${flagBadgeHTML(flagValue(s.readings.at(-1)?.value, s.refLow, s.refHigh).status)}
-</div>` : '';
+  <div class="stat-badges">
+    ${flagBadgeHTML(status)}
+    ${severity !== 'normal' ? `<span class="sev-badge sev-${severity}">${severity}</span>` : ''}
+  </div>
+</div>`;
+  };
 
   return `
 <div class="tab-pane">
