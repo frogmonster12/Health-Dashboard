@@ -262,7 +262,7 @@ function summaryCardHTML(card) {
     <span class="sc-goal-label">Goal</span>
     <input type="number" step="any" class="sc-goal-input"
            data-marker-goal="${normName(card.name)}"
-           value="${state.goals?.[normName(card.name)] ?? ''}"
+           value="${userGoals?.[normName(card.name)] ?? ''}"
            placeholder="—" />
     ${card.unit ? `<span class="sc-goal-unit">${esc(card.unit)}</span>` : ''}
   </div>
@@ -450,7 +450,7 @@ function multiLineConfig(seriesArr, yLabel) {
               const ref = s.refLow != null && s.refHigh != null ? ` [ref: ${s.refLow}–${s.refHigh}]`
                 : s.refHigh != null ? ` [ref: <${s.refHigh}]`
                 : s.refLow  != null ? ` [ref: >${s.refLow}]` : '';
-              const goalVal = state.goals?.[normName(s.name)];
+              const goalVal = userGoals?.[normName(s.name)];
               const goalStr = goalVal != null ? ` [goal: ${goalVal}]` : '';
               const flag = status !== 'NORMAL' ? ` ⚑ ${status}` : '';
               return `${ctx.dataset.label}: ${val}${ref}${goalStr}${flag}`;
@@ -528,7 +528,7 @@ function dualAxisConfig(series1, series2) {
 
 // Appends a green dashed goal line to any chart config that has a matching goal in state
 function addGoalLine(cfg, markerName, unit, yAxisID = 'y') {
-  const goal = state.goals?.[normName(markerName)];
+  const goal = userGoals?.[normName(markerName)];
   if (goal == null || !cfg?.data?.datasets) return;
   cfg.data.datasets.push({
     label: `${markerName} Goal: ${goal}${unit ? ' ' + unit : ''}`,
@@ -591,7 +591,7 @@ function initRenalCharts(panels) {
     const s = creat ?? egfr;
     initChart('chart-renal-dual', getChartConfig(s.name, s.readings, {
       refLow: s.refLow, refHigh: s.refHigh, unit: s.unit,
-      goal: state.goals?.[normName(s.name)],
+      goal: userGoals?.[normName(s.name)],
     }));
   }
 }
@@ -623,7 +623,7 @@ function initLipidCharts(panels) {
   if (primary.length) initChart('chart-lipid-main', multiLineConfig(primary, 'mg/dL'));
   if (trig) initChart('chart-lipid-trig', getChartConfig(
     trig.name, trig.readings, { refLow: trig.refLow, refHigh: trig.refHigh, unit: trig.unit,
-      goal: state.goals?.[normName(trig.name)] }
+      goal: userGoals?.[normName(trig.name)] }
   ));
 }
 
@@ -685,7 +685,7 @@ function initBodyCompCharts(panels) {
   const weight = findSeries(scaleAll, 'weight', 'bmi');
   if (weight) initChart('chart-scale-weight', getChartConfig(
     weight.name, weight.readings, { refLow: weight.refLow, refHigh: weight.refHigh, unit: weight.unit,
-      goal: state.goals?.[normName(weight.name)] }
+      goal: userGoals?.[normName(weight.name)] }
   ));
 }
 
@@ -779,7 +779,7 @@ function initHormonesCharts(panels) {
     const s = test ?? e2;
     const cfg = withDosageLines(
       getChartConfig(s.name, s.readings, { refLow: s.refLow, refHigh: s.refHigh, unit: s.unit,
-        goal: state.goals?.[normName(s.name)] })
+        goal: userGoals?.[normName(s.name)] })
     );
     cfg.plugins = [DOSAGE_LINES_PLUGIN];
     initChart('chart-hormone-main', cfg);
@@ -826,16 +826,16 @@ function initCBCCharts(panels) {
     const s = hgb ?? hct;
     initChart('chart-cbc-hgb', getChartConfig(s.name, s.readings, {
       refLow: s.refLow, refHigh: s.refHigh, unit: s.unit,
-      goal: state.goals?.[normName(s.name)], color: '#ef4444',
+      goal: userGoals?.[normName(s.name)], color: '#ef4444',
     }));
   }
   if (wbc) initChart('chart-cbc-wbc', getChartConfig(wbc.name, wbc.readings, {
     refLow: wbc.refLow, refHigh: wbc.refHigh, unit: wbc.unit,
-    goal: state.goals?.[normName(wbc.name)], color: '#3b82f6',
+    goal: userGoals?.[normName(wbc.name)], color: '#3b82f6',
   }));
   if (plt) initChart('chart-cbc-plt', getChartConfig(plt.name, plt.readings, {
     refLow: plt.refLow, refHigh: plt.refHigh, unit: plt.unit,
-    goal: state.goals?.[normName(plt.name)], color: '#a855f7',
+    goal: userGoals?.[normName(plt.name)], color: '#a855f7',
   }));
 }
 
@@ -862,7 +862,7 @@ function initThyroidCharts(panels) {
   const ft3 = findSeries(readings, 'free t3', 'ft3');
   if (tsh) initChart('chart-thyroid-tsh', getChartConfig(tsh.name, tsh.readings, {
     refLow: tsh.refLow, refHigh: tsh.refHigh, unit: tsh.unit,
-    goal: state.goals?.[normName(tsh.name)], color: '#f59e0b',
+    goal: userGoals?.[normName(tsh.name)], color: '#f59e0b',
   }));
   const t4t3 = [ft4, ft3].filter(Boolean);
   if (t4t3.length) initChart('chart-thyroid-t4t3', multiLineConfig(t4t3));
@@ -965,19 +965,28 @@ function renderDashboard() {
     if (btn) openAnnotationModal(btn.dataset.annKey);
   });
 
-  // Goal input — update state.goals and reinit charts when a goal value changes
+  // Goal input — one source of truth: userGoals.
+  // Sync every input for the same marker on the page so Flagged and
+  // All Markers cards never diverge.
   document.getElementById('dashContent').addEventListener('change', (e) => {
     const input = e.target.closest('.sc-goal-input');
     if (!input) return;
     const marker = input.dataset.markerGoal;
     if (!marker) return;
+
     const val = parseFloat(input.value);
     if (isNaN(val) || input.value.trim() === '') {
-      delete state.goals[marker];
+      delete userGoals[marker];
     } else {
-      state.goals[marker] = val;
+      userGoals[marker] = val;
     }
-    reinitActiveCharts(); // redraws charts in the current tab with updated goal line
+
+    // Push the new value to every other input sharing the same marker key
+    document.querySelectorAll(`.sc-goal-input[data-marker-goal="${marker}"]`).forEach(inp => {
+      if (inp !== input) inp.value = input.value;
+    });
+
+    reinitActiveCharts();
   });
 
   // Back button — clears state and returns to upload screen with transition

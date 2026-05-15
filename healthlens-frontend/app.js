@@ -72,13 +72,17 @@ const SVG = {
   </svg>`,
 };
 
+// Single source of truth for user-set goal values.
+// Keyed by normName(markerName). Both card types (Flagged and All Markers)
+// are views into this one object — they never diverge.
+const userGoals = {};  // { markerName: goalValue }
+
 // ── State ────────────────────────────────────────────────────────────────────
 // ALL state lives here. No localStorage, sessionStorage, cookies, or IndexedDB.
 const state = {
   files: new Map(),   // id → FileEntry
   privacyMode: false,
   exporting: false,   // true while PDF export is running — blocks privacy toggle
-  goals: {},          // normName(markerName) → goal value (number); persists across file uploads
   annotations: {},    // `${normName(name)}::${date}` → note string; persists across file uploads
 };
 
