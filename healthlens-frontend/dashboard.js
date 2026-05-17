@@ -560,9 +560,10 @@ function _partialNotice(panels, nameSet) {
 // Renders an insight block if insights are enabled. Shows a loading spinner
 // while generateInsights() is still in flight for this tab.
 function insightHTML(tabId) {
-  const text = state.insights?.[tabId];
+  const text    = state.insights?.[tabId];
   if (text) {
-    return `<div class="insight-card">
+    const isError = text.startsWith('⚠');
+    return `<div class="insight-card${isError ? ' insight-error' : ''}">
   <div class="insight-header">
     <span class="insight-label">✦ AI-generated analysis</span>
     <span class="insight-disclaimer">This is not medical advice. Consult your healthcare provider.</span>

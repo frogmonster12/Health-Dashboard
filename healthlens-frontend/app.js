@@ -89,6 +89,9 @@ const state = {
   insights: {},           // tabId → AI-generated insight string; cleared on each new analysis
 };
 
+// Re-entry guard so a double-tap or rapid back+forward can't launch two batches at once
+let _analyzeBatchRunning = false;
+
 // FileEntry shape:
 // {
 //   id:          string,
@@ -1031,18 +1034,33 @@ function wireUploadView() {
       switchView(renderDashboard);
       return;
     }
-    state.insights = {}; // clear any insights from a previous session
+
+    if (_analyzeBatchRunning) return; // prevent double-tap during an active batch
+
+    state.insights = {};
     const toAnalyze = [...state.files.values()].filter(
       e => e.phase === 'ready' && e.docType !== ''
     );
-    if (state.geminiKey) {
-      // Sequential when using Gemini — free tier has strict requests-per-minute
-      // limits and concurrent calls will hit the quota immediately.
-      (async () => { for (const e of toAnalyze) await analyzeFile(e.id); })();
-    } else {
-      // Parallel is fine for the Cloudflare Worker (no shared rate limit)
-      Promise.all(toAnalyze.map(e => analyzeFile(e.id)));
-    }
+    if (!toAnalyze.length) return;
+
+    // Both paths run in parallel. _geminiCall handles 429s transparently with backoff.
+    // Gemini path is chunked in groups of 10 to stay safely under the 15 req/min
+    // free-tier limit on bulk historical uploads (>10 files).
+    _analyzeBatchRunning = true;
+    (async () => {
+      try {
+        if (state.geminiKey) {
+          const CHUNK = 10;
+          for (let i = 0; i < toAnalyze.length; i += CHUNK) {
+            await Promise.allSettled(toAnalyze.slice(i, i + CHUNK).map(e => analyzeFile(e.id)));
+          }
+        } else {
+          await Promise.allSettled(toAnalyze.map(e => analyzeFile(e.id)));
+        }
+      } finally {
+        _analyzeBatchRunning = false;
+      }
+    })();
   });
 
   // Sample data button

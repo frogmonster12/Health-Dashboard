@@ -1,6 +1,6 @@
 # HealthLens — Project Context
 *For sharing with Claude or other AI assistants to resume work on this project.*
-*Last updated: 2026-05-17*
+*Last updated: 2026-05-17 (Fix 1-3: parallel analyze, insight error handling, token cap)*
 
 ---
 
@@ -113,7 +113,7 @@ const userGoals = {};     // normName(markerName) → goal value (separate from 
 
 1. User drops PDF → pdf.js extracts text → card shows "Extracting…"
 2. User tags document type → "Analyze Documents" button enables
-3. On Analyze: if `state.geminiKey` → call `callGeminiForParse()` in `gemini.js` directly; else → call `POST /analyze` on Worker
+3. On Analyze: if `state.geminiKey` → call `callGeminiForParse()` in `gemini.js` directly; else → call `POST /analyze` on Worker. Files are analyzed in parallel (chunked in groups of 10 when using Gemini, to stay under the free-tier 15 req/min limit). Each card updates independently as its result arrives.
 4. On completion: if any panels have no date → stay on upload with date picker; if all dated → auto-transition to dashboard
 
 ### Dashboard tabs
@@ -144,7 +144,7 @@ const userGoals = {};     // normName(markerName) → goal value (separate from 
 
 - `isValidKeyFormat(key)` → boolean (length ≥ 20)
 - `callGeminiForParse(apiKey, docType, textContent, fileName)` → ExtractedDocument (throws on error)
-- `generateInsights(panels)` → updates `state.insights` concurrently per tab, triggers `renderActiveTab()` as each arrives
+- `generateInsights(panels)` → updates `state.insights` concurrently per tab, triggers `renderActiveTab()` as each arrives. Failed insights render with `.insight-error` styling so the spinner never hangs.
 
 When `state.geminiKey` is set and `state.insightsEnabled` is true:
 - Dashboard renders with loading spinners in each tab's insight slot

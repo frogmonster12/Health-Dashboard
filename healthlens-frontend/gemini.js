@@ -277,11 +277,11 @@ async function generateInsights(panels) {
   const work = [
     _geminiCall(state.geminiKey, _overviewPrompt(panels), 1024)
       .then(t => _updateTab('overview', t.trim()))
-      .catch(() => {}),
+      .catch(err => _updateTab('overview', `⚠ Insight unavailable: ${err.message}`)),
     ...tabIds.map(id =>
-      _geminiCall(state.geminiKey, _tabInsightPrompt(id, panels), 512)
+      _geminiCall(state.geminiKey, _tabInsightPrompt(id, panels), 1024)
         .then(t => _updateTab(id, t.trim()))
-        .catch(() => {})
+        .catch(err => _updateTab(id, `⚠ Insight unavailable: ${err.message}`))
     ),
   ];
 
