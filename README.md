@@ -14,7 +14,7 @@ HealthLens works without any API key. If you want faster, higher-accuracy parsin
 
 **Without a key:** Documents are parsed by the Cloudflare Worker using Llama 3.1 8B. This is the default experience and works for all document types.
 
-**With a key (parsing only):** PDF text is sent directly from your browser to the Gemini 2.0 Flash API. The Worker is bypassed entirely. The Cloudflare Worker never sees your key.
+**With a key (parsing only):** PDF text is sent directly from your browser to the Gemini 1.5 Flash API. The Worker is bypassed entirely. The Cloudflare Worker never sees your key.
 
 **With a key + AI Insights enabled:** After all documents are analyzed, Gemini generates a 2–4 sentence plain-language synopsis for each tab (Renal, Lipid, Hepatic, etc.) and a 1–2 paragraph holistic overview. Insights appear inline on the dashboard and in the exported PDF. All insights are labeled "AI-generated analysis" with a disclaimer that they are not medical advice.
 

@@ -20,7 +20,7 @@ HealthLens is a personal health document dashboard. Users drag-and-drop lab repo
 | Frontend | Vanilla HTML + CSS + JS, hosted on Cloudflare Pages |
 | Backend | Cloudflare Worker (Wrangler 4.x) |
 | Default AI parsing | Workers AI — `@cf/meta/llama-3.1-8b-instruct` |
-| Optional AI parsing | Gemini 2.0 Flash (direct browser → Gemini API, user's own key) |
+| Optional AI parsing | Gemini 1.5 Flash (direct browser → Gemini API, user's own key) |
 | Charts | Chart.js 4.4.1 (cdnjs) |
 | PDF export | jsPDF 2.5.1 + html2canvas 1.4.1 (cdnjs) |
 | PDF extraction | pdf.js 3.11.174 (cdnjs) |

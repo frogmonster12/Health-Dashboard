@@ -432,7 +432,7 @@ async function analyzeFile(id) {
   updateAnalyzeBtn();
 
   try {
-    // Route through Gemini 2.0 Flash when the user has provided a key;
+    // Route through Gemini 1.5 Flash when the user has provided a key;
     // otherwise use the default Cloudflare Workers AI path via the Worker.
     const result = state.geminiKey
       ? await callGeminiForParse(state.geminiKey, entry.docType,
@@ -919,7 +919,7 @@ function renderUploadView() {
              placeholder="AIza…" autocomplete="off" spellcheck="false" />
       <p class="api-key-note">
         An API key is not required. Without one, documents are parsed using our default AI model.
-        Providing a key unlocks more accurate parsing with Gemini 2.0 Flash and optional AI-generated insights.
+        Providing a key unlocks more accurate parsing with Gemini 1.5 Flash and optional AI-generated insights.
       </p>
       <label class="insights-toggle-label">
         <input type="checkbox" id="insightsEnabled" disabled />
