@@ -80,10 +80,13 @@ const userGoals = {};  // { markerName: goalValue }
 // ── State ────────────────────────────────────────────────────────────────────
 // ALL state lives here. No localStorage, sessionStorage, cookies, or IndexedDB.
 const state = {
-  files: new Map(),   // id → FileEntry
+  files: new Map(),       // id → FileEntry
   privacyMode: false,
-  exporting: false,   // true while PDF export is running — blocks privacy toggle
-  annotations: {},    // `${normName(name)}::${date}` → note string; persists across file uploads
+  exporting: false,       // true while PDF export is running — blocks privacy toggle
+  annotations: {},        // `${normName(name)}::${date}` → note string; persists across file uploads
+  geminiKey: '',          // user-supplied Gemini API key — never stored, never sent to Worker
+  insightsEnabled: false, // true when key present AND checkbox checked
+  insights: {},           // tabId → AI-generated insight string; cleared on each new analysis
 };
 
 // FileEntry shape:
@@ -419,7 +422,13 @@ async function analyzeFile(id) {
   updateAnalyzeBtn();
 
   try {
-    const result = await callWorker(entry);
+    // Route through Gemini 2.0 Flash when the user has provided a key;
+    // otherwise use the default Cloudflare Workers AI path via the Worker.
+    const result = state.geminiKey
+      ? await callGeminiForParse(state.geminiKey, entry.docType,
+          entry.text ?? `[Image file: ${entry.file.type}, ${entry.file.name}]`,
+          entry.file.name)
+      : await callWorker(entry);
     if (!state.files.has(id)) return;
     setPhase(id, 'done', { result });
   } catch (err) {
@@ -813,6 +822,29 @@ function renderUploadView() {
     <button class="sample-btn" id="sampleBtn" type="button">Try with sample data →</button>
   </div>
 
+  <details class="api-settings" id="apiSettings">
+    <summary class="api-settings-toggle">
+      ⚙ Advanced — Gemini API Key
+    </summary>
+    <div class="api-settings-body">
+      <div class="api-key-header">
+        <label class="api-key-label" for="geminiKey">Gemini API Key</label>
+        <span class="info-icon" data-tip="Your Gemini API key is used to improve PDF parsing accuracy and optionally generate AI insights. It is never stored, never sent to our servers, and is cleared when you close or refresh the page. Get a free key at aistudio.google.com">ⓘ</span>
+      </div>
+      <input type="password" id="geminiKey" class="api-key-input"
+             placeholder="AIza…" autocomplete="off" spellcheck="false" />
+      <p class="api-key-note">
+        An API key is not required. Without one, documents are parsed using our default AI model.
+        Providing a key unlocks more accurate parsing with Gemini 2.0 Flash and optional AI-generated insights.
+      </p>
+      <label class="insights-toggle-label">
+        <input type="checkbox" id="insightsEnabled" disabled />
+        Enable AI Insights
+        <span class="insights-toggle-hint">(enabled once a key is entered)</span>
+      </label>
+    </div>
+  </details>
+
   <div class="drop-zone" id="dropZone"
        role="button" tabindex="0"
        aria-label="Drop files here or click to browse">
@@ -912,6 +944,7 @@ function wireUploadView() {
       switchView(renderDashboard);
       return;
     }
+    state.insights = {}; // clear any insights from a previous session
     const toAnalyze = [...state.files.values()].filter(
       e => e.phase === 'ready' && e.docType !== ''
     );
@@ -920,6 +953,19 @@ function wireUploadView() {
 
   // Sample data button
   document.getElementById('sampleBtn')?.addEventListener('click', loadSampleData);
+
+  // Gemini API key — lives in state.geminiKey only, never written anywhere else
+  document.getElementById('geminiKey')?.addEventListener('input', (e) => {
+    const key = e.target.value.trim();
+    state.geminiKey = key;
+    const cb = document.getElementById('insightsEnabled');
+    const valid = typeof isValidKeyFormat === 'function' && isValidKeyFormat(key);
+    cb.disabled = !valid;
+    if (!valid) { cb.checked = false; state.insightsEnabled = false; }
+  });
+  document.getElementById('insightsEnabled')?.addEventListener('change', (e) => {
+    state.insightsEnabled = e.target.checked;
+  });
 
   // Manual form: open, cancel, submit — delegated to fileList
   fileList.addEventListener('click', (e) => {

@@ -429,45 +429,17 @@ async function _bodyCompImgs(panels) {
 // ── Combined sections: each category gets its own page with chart then table ───
 async function _addSections(panels) {
   const SECTIONS = [
-    {
-      title: 'Renal Function',
-      chartFn: _renalImgs,
-      getMap: (p) => getMarkerReadings(p, RENAL_SET),
-    },
-    {
-      title: 'Lipid Panel',
-      chartFn: _lipidImgs,
-      getMap: (p) => getMarkerReadings(p, LIPID_SET),
-    },
-    {
-      title: 'Hepatic Markers',
-      chartFn: _hepaticImgs,
-      getMap: (p) => getMarkerReadings(p, HEPATIC_SET),
-    },
-    {
-      title: 'Hormones',
-      chartFn: _hormoneImgs,
-      getMap: (p) => getMarkerReadings(p, HORMONE_SET),
-    },
-    {
-      title: 'CBC (Blood Count)',
-      chartFn: _cbcImgs,
-      getMap: (p) => getMarkerReadings(p, CBC_SET),
-    },
-    {
-      title: 'Thyroid',
-      chartFn: _thyroidImgs,
-      getMap: (p) => getMarkerReadings(p, THYROID_SET),
-    },
-    {
-      title: 'Body Composition',
-      chartFn: _bodyCompImgs,
-      getMap: (p) => {
+    { id: 'renal',    title: 'Renal Function',   chartFn: _renalImgs,   getMap: (p) => getMarkerReadings(p, RENAL_SET) },
+    { id: 'lipid',    title: 'Lipid Panel',       chartFn: _lipidImgs,   getMap: (p) => getMarkerReadings(p, LIPID_SET) },
+    { id: 'hepatic',  title: 'Hepatic Markers',   chartFn: _hepaticImgs, getMap: (p) => getMarkerReadings(p, HEPATIC_SET) },
+    { id: 'hormones', title: 'Hormones',           chartFn: _hormoneImgs, getMap: (p) => getMarkerReadings(p, HORMONE_SET) },
+    { id: 'cbc',      title: 'CBC (Blood Count)',  chartFn: _cbcImgs,     getMap: (p) => getMarkerReadings(p, CBC_SET) },
+    { id: 'thyroid',  title: 'Thyroid',            chartFn: _thyroidImgs, getMap: (p) => getMarkerReadings(p, THYROID_SET) },
+    { id: 'bodycomp', title: 'Body Composition',   chartFn: _bodyCompImgs, getMap: (p) => {
         const d = getMarkerReadings(p.filter(x => x.documentType === 'dexa'),  null);
         const s = getMarkerReadings(p.filter(x => x.documentType === 'scale'), null);
         return new Map([...d, ...s]);
-      },
-    },
+    }},
   ];
 
   const shownKeys = new Set();
@@ -480,6 +452,22 @@ async function _addSections(panels) {
     // Each section starts on a fresh page
     _newPage();
     _sectionHead(sec.title);
+
+    // AI insight block — printed before charts when insights were generated
+    const _insight = state.insights?.[sec.id ?? sec.title.toLowerCase().replace(/\s+/g, '')];
+    if (_insight) {
+      _need(28);
+      _f(7.5, 'bold', KC.teal); _pdf.text('[AI] AI-Generated Analysis', PM, _cy); _cy += 5;
+      _f(6.5, 'normal', KC.muted); _pdf.setFont('helvetica', 'italic');
+      _pdf.text('This is not medical advice. Consult your healthcare provider.', PM, _cy);
+      _pdf.setFont('helvetica', 'normal'); _cy += 6;
+      _f(8, 'normal', KC.mid);
+      _pdf.splitTextToSize(_insight, PCW).forEach(line => {
+        if (_cy + 5 > PMY) _newPage();
+        _pdf.text(line, PM, _cy); _cy += 5;
+      });
+      _cy += 6;
+    }
 
     // Chart(s) — multiple for lipid (primary + triglycerides)
     for (const { title: chartTitle, img } of imgs) {
@@ -623,6 +611,22 @@ async function exportPDF() {
     if (flagged.length) {
       _sectionHead(`Flagged Markers (${flagged.length})`);
       _drawSummaryCards(flagged);
+    }
+
+    // Overview AI insight (if generated)
+    const _overviewInsight = state.insights?.overview;
+    if (_overviewInsight) {
+      _need(30);
+      _f(7.5, 'bold', KC.teal); _pdf.text('[AI] AI-Generated Overview', PM, _cy); _cy += 5;
+      _f(6.5, 'normal', KC.muted); _pdf.setFont('helvetica', 'italic');
+      _pdf.text('This is not medical advice. Consult your healthcare provider.', PM, _cy);
+      _pdf.setFont('helvetica', 'normal'); _cy += 6;
+      _f(8, 'normal', KC.mid);
+      _pdf.splitTextToSize(_overviewInsight, PCW).forEach(line => {
+        if (_cy + 5 > PMY) _newPage();
+        _pdf.text(line, PM, _cy); _cy += 5;
+      });
+      _cy += 6;
     }
 
     // 5. One page per category: chart then data table, imaging handled inside

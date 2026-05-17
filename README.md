@@ -8,6 +8,22 @@ HealthLens lets you upload blood work, DEXA scans, imaging results, and weight l
 
 ---
 
+## Optional: Gemini API Key
+
+HealthLens works without any API key. If you want faster, higher-accuracy parsing and optional AI-generated insights, you can provide a free Gemini API key.
+
+**Without a key:** Documents are parsed by the Cloudflare Worker using Llama 3.1 8B. This is the default experience and works for all document types.
+
+**With a key (parsing only):** PDF text is sent directly from your browser to the Gemini 2.0 Flash API. The Worker is bypassed entirely. The Cloudflare Worker never sees your key.
+
+**With a key + AI Insights enabled:** After all documents are analyzed, Gemini generates a 2–4 sentence plain-language synopsis for each tab (Renal, Lipid, Hepatic, etc.) and a 1–2 paragraph holistic overview. Insights appear inline on the dashboard and in the exported PDF. All insights are labeled "AI-generated analysis" with a disclaimer that they are not medical advice.
+
+**Getting a free key:** Visit [aistudio.google.com](https://aistudio.google.com) → Get API key. The free tier is sufficient for personal use.
+
+**Privacy:** Your API key is stored only as a JavaScript variable in your browser tab. It is never sent to the Cloudflare Worker, never written to localStorage, and disappears when you close or refresh the page — the same as all other data in HealthLens.
+
+---
+
 ## Why you can trust this
 
 There is no database behind HealthLens. When you drop a PDF onto the page, the text is sent to a Cloudflare Worker only long enough to pull out numbers — the Worker does not log requests, does not write anything to disk, and discards everything the moment it sends a response back. When you close the tab or refresh, every number you uploaded is gone. The privacy toggle redacts your name, date of birth, and doctor's name from both the screen and any PDF you export, and can call the server to confirm the redaction before exporting.

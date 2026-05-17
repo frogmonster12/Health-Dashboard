@@ -556,11 +556,34 @@ function _partialNotice(panels, nameSet) {
     : '';
 }
 
+// ── AI insight card ───────────────────────────────────────────────────────────
+// Renders an insight block if insights are enabled. Shows a loading spinner
+// while generateInsights() is still in flight for this tab.
+function insightHTML(tabId) {
+  const text = state.insights?.[tabId];
+  if (text) {
+    return `<div class="insight-card">
+  <div class="insight-header">
+    <span class="insight-label">✦ AI-generated analysis</span>
+    <span class="insight-disclaimer">This is not medical advice. Consult your healthcare provider.</span>
+  </div>
+  <p class="insight-text">${esc(text)}</p>
+</div>`;
+  }
+  if (state.geminiKey && state.insightsEnabled) {
+    return `<div class="insight-card insight-loading">
+  <span class="spinner"></span>&nbsp; Generating AI analysis&hellip;
+</div>`;
+  }
+  return '';
+}
+
 // ── Tab renderers ─────────────────────────────────────────────────────────────
 function renderOverviewTab(cards) {
   const flagged = cards.filter(c => c.status !== 'NORMAL');
   return `
 <div class="tab-pane">
+  ${insightHTML('overview')}
   <h2 class="pane-title">Flagged Markers</h2>
   ${flagged.length ? summaryGridHTML(flagged, false) : '<p class="dash-empty">All markers within reference ranges.</p>'}
   <h2 class="pane-title" style="margin-top:36px">All Markers</h2>
@@ -573,6 +596,7 @@ function renderRenalTab(panels) {
   const hasDual  = findSeries(readings, 'creatinine') && findSeries(readings, 'egfr', 'gfr');
   return `
 <div class="tab-pane">
+  ${insightHTML('renal')}
   ${_partialNotice(panels, RENAL_SET)}
   ${hasDual ? chartSection('Creatinine & eGFR (dual axis)', 'chart-renal-dual') : ''}
   <h2 class="pane-title" style="margin-top:${hasDual ? 36 : 0}px">Renal Markers — All Data</h2>
@@ -607,6 +631,7 @@ function renderLipidTab(panels) {
   const hasTrig = [...readings.keys()].some(k => k.includes('triglyceride'));
   return `
 <div class="tab-pane">
+  ${insightHTML('lipid')}
   ${notice}
   ${hasPrimary ? chartSection('LDL · HDL · Total Cholesterol · Non-HDL', 'chart-lipid-main') : ''}
   ${hasTrig    ? chartSection('Triglycerides', 'chart-lipid-trig') : ''}
@@ -636,6 +661,7 @@ function renderHepaticTab(panels) {
   );
   return `
 <div class="tab-pane">
+  ${insightHTML('hepatic')}
   ${_partialNotice(panels, HEPATIC_SET)}
   ${hasEnzymes ? chartSection('AST · ALT · Alkaline Phosphatase', 'chart-hepatic-enz') : ''}
   <h2 class="pane-title" style="margin-top:${hasEnzymes ? 36 : 0}px">Hepatic Markers — All Data</h2>
@@ -663,6 +689,7 @@ function renderBodyCompTab(panels) {
 
   return `
 <div class="tab-pane">
+  ${insightHTML('bodycomp')}
   ${_partialNotice(panels, null)}
   ${hasDexa  ? chartSection('Body Composition (DEXA)',   'chart-dexa-comp')   : ''}
   ${hasScale ? chartSection('Weight Trend',              'chart-scale-weight') : ''}
@@ -758,6 +785,7 @@ function renderHormonesTab(panels) {
 
   return `
 <div class="tab-pane">
+  ${insightHTML('hormones')}
   ${_partialNotice(panels, HORMONE_SET)}
   ${doseSummary}
   ${hasMain  ? chartSection(chartTitle, 'chart-hormone-main') : ''}
@@ -813,6 +841,7 @@ function renderCBCTab(panels) {
   const hasCharts  = hasHgbHct || hasWBC || hasPlt;
   return `
 <div class="tab-pane">
+  ${insightHTML('cbc')}
   ${_partialNotice(panels, CBC_SET)}
   ${hasHgbHct ? chartSection('Hemoglobin & Hematocrit', 'chart-cbc-hgb') : ''}
   ${hasWBC    ? chartSection('White Blood Cells (WBC)',  'chart-cbc-wbc') : ''}
@@ -859,6 +888,7 @@ function renderThyroidTab(panels) {
   const hasCharts = hasTSH || hasT4T3;
   return `
 <div class="tab-pane">
+  ${insightHTML('thyroid')}
   ${_partialNotice(panels, THYROID_SET)}
   ${hasTSH  ? chartSection('TSH (Thyroid Stimulating Hormone)', 'chart-thyroid-tsh')  : ''}
   ${hasT4T3 ? chartSection('Free T4 & Free T3',                 'chart-thyroid-t4t3') : ''}
@@ -1078,4 +1108,11 @@ function renderDashboard() {
     state.files.clear();
     switchView(renderUploadView);
   });
+
+  // Kick off AI insights generation concurrently after dashboard renders.
+  // generateInsights() is defined in gemini.js and re-renders the active tab
+  // as each insight arrives — no blocking, loading spinners show in the interim.
+  if (state.geminiKey && state.insightsEnabled && typeof generateInsights === 'function') {
+    generateInsights(panels);
+  }
 }
