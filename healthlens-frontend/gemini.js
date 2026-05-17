@@ -3,8 +3,10 @@
 // The key is never sent to the Cloudflare Worker, never stored, and is cleared on refresh.
 // Load order: after dashboard.js (uses RENAL_SET etc. as globals), before app.js.
 
+// gemini-1.5-flash is used because it has a free tier (15 RPM, 1500 req/day).
+// gemini-2.0-flash requires billing to be enabled and has limit: 0 on the free tier.
 const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 // ── Key validation (format only — real validation happens on first API call) ───
 function isValidKeyFormat(key) {
