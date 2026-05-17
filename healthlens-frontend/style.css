@@ -1132,7 +1132,6 @@ body.drag-active { user-select: none; }
   border: 1px solid var(--navy-border);
   border-radius: var(--r-lg);
   background: var(--navy-mid);
-  overflow: hidden;
 }
 .api-settings-toggle {
   cursor: pointer;
