@@ -402,6 +402,16 @@ async function extractFile(id) {
     }
 
     if (!state.files.has(id)) return; // removed during async op
+
+    // Auto-detect document type from extracted text when the user hasn't chosen one
+    if (entry.text && !entry.docType) {
+      const { type, confidence } = inferDocType(entry.text);
+      if (type && confidence !== 'none' && confidence !== 'low') {
+        entry.docType      = type;
+        entry.autoDetected = true;
+      }
+    }
+
     setPhase(id, 'ready');
   } catch (err) {
     if (!state.files.has(id)) return;
@@ -484,6 +494,7 @@ function addFiles(fileList) {
       errorMsg: null, errorPhase: null,
       text: null, base64: null, result: null, showManual: false,
       testDose: '', aiDose: '',
+      autoDetected: false, // true when docType was inferred, not manually chosen
     });
     existing.add(dedupKey(file));
     added++;
@@ -565,11 +576,14 @@ function cardHTML(entry) {
       <button class="retry-btn" data-action="retry" data-id="${esc(entry.id)}">Retry</button>
       ${canManual ? `<button class="manual-btn" data-action="manual" data-id="${esc(entry.id)}">Enter manually</button>` : ''}`;
   } else {
-    const sel = `<select class="doc-type-select" data-action="doctype" data-id="${esc(entry.id)}"${selectOff ? ' disabled' : ''}>${options}</select>`;
-    // Dosage fields only on Testosterone — not on Estradiol
+    const sel  = `<select class="doc-type-select" data-action="doctype" data-id="${esc(entry.id)}"${selectOff ? ' disabled' : ''}>${options}</select>`;
+    const auto = entry.autoDetected
+      ? `<span class="auto-badge" title="Document type detected automatically from content">auto</span>`
+      : '';
+    // For testosterone, dose fields stack below in a column layout; badge stays on the top row
     bottomContent = entry.docType === 'testosterone'
-      ? sel + doseFieldsHTML(entry)
-      : sel;
+      ? `<div class="doctype-row">${sel}${auto}</div>${doseFieldsHTML(entry)}`
+      : `${sel}${auto}`;
   }
 
   return `
@@ -755,6 +769,76 @@ function buildManualResult(form, docType, fileName) {
   };
 }
 
+// ── Document type auto-detection ─────────────────────────────────────────────
+// Scans extracted text for known marker keywords and returns a type + confidence.
+// Priority-ordered so more specific types win over generic ones.
+// Returns { type: string, confidence: 'high'|'medium'|'low'|'none' }
+function inferDocType(text) {
+  const t   = text.toLowerCase();
+  const hdr = t.slice(0, 700); // header region gets heavier weighting
+  const cnt = (re) => (t.match(re) ?? []).length;
+  const hdr$ = (re) => re.test(hdr);
+
+  // CTCA / Cardiac Imaging — check first, very distinctive terms
+  if (cnt(/\b(cac score|coronary artery calcium|calcium score|agatston|lvef|ejection fraction|coronary ct|ctca)\b/g) >= 1
+      || cnt(/\b(stenosis|coronary artery)\b/g) >= 2) {
+    return { type: 'ctca', confidence: 'high' };
+  }
+
+  // DEXA / Body Composition
+  if (cnt(/\b(dexa|dxa|dual.energy x-ray|bone mineral density|t-score|z-score|lean mass|fat mass|body composition)\b/g) >= 1) {
+    return { type: 'dexa', confidence: 'high' };
+  }
+
+  // Thyroid panel
+  const thyroidHits = cnt(/\b(tsh|thyroid stimulating hormone|free t4|free t3|thyroxine|triiodothyronine|tpo antibod|thyroglobulin)\b/g);
+  if (thyroidHits >= 2 || (hdr$(/\b(thyroid|tsh)\b/) && thyroidHits >= 1)) {
+    return { type: 'thyroid', confidence: 'high' };
+  }
+
+  // Testosterone — if the word appears at all, classify here (panels that
+  // include both T and CMP are still primarily a testosterone draw)
+  if (cnt(/\b(testosterone)\b/g) >= 1) {
+    return { type: 'testosterone', confidence: 'high' };
+  }
+
+  // Estradiol-only (no testosterone found above)
+  if (cnt(/\b(estradiol|estrogen)\b/g) >= 1) {
+    return { type: 'estradiol', confidence: 'high' };
+  }
+
+  // Lipid Panel
+  const lipidHits = cnt(/\b(ldl|hdl|cholesterol|triglyceride|lipoprotein|non-hdl|apob|vldl|lp\(a\))\b/g);
+  if (lipidHits >= 2 || hdr$(/\b(lipid panel|cholesterol panel)\b/)) {
+    return { type: 'lipid_panel', confidence: lipidHits >= 3 ? 'high' : 'medium' };
+  }
+
+  // CBC
+  const cbcHits = cnt(/\b(wbc|white blood|rbc|red blood|hemoglobin|hematocrit|platelet|neutrophil|lymphocyte|mcv|mchc|rdw)\b/g);
+  if (cbcHits >= 3 || (hdr$(/\b(complete blood count|cbc)\b/) && cbcHits >= 1)) {
+    return { type: 'cbc', confidence: cbcHits >= 4 ? 'high' : 'medium' };
+  }
+
+  // Scale / Weight log (only when no other lab markers are present)
+  const hasLabMarkers = cnt(/\b(glucose|cholesterol|hemoglobin|creatinine|tsh|testosterone|sodium)\b/g) >= 1;
+  if (!hasLabMarkers && cnt(/\b(weight|bmi|body mass index)\b/g) >= 1) {
+    return { type: 'scale', confidence: 'medium' };
+  }
+
+  // Blood Work / CMP — broad catch-all for metabolic panels
+  const cmpHits = cnt(/\b(glucose|creatinine|egfr|bun|sodium|potassium|chloride|calcium|albumin|ast|alt|alkaline phosphatase|bilirubin|total protein)\b/g);
+  if (cmpHits >= 3 || hdr$(/\b(comprehensive metabolic|basic metabolic|\bcmp\b|\bbmp\b|metabolic panel)\b/)) {
+    return { type: 'blood_work', confidence: cmpHits >= 5 ? 'high' : 'medium' };
+  }
+
+  // Weak signal — something lab-ish but not enough to be confident
+  if (cmpHits >= 1 || lipidHits >= 1 || cbcHits >= 1) {
+    return { type: 'blood_work', confidence: 'low' };
+  }
+
+  return { type: '', confidence: 'none' };
+}
+
 // ── View transition ───────────────────────────────────────────────────────────
 function switchView(renderFn) {
   const view = document.getElementById('view');
@@ -910,7 +994,10 @@ function wireUploadView() {
     const sel = e.target.closest('[data-action="doctype"]');
     if (sel) {
       const entry = state.files.get(sel.dataset.id);
-      if (entry) entry.docType = sel.value;
+      if (entry) {
+        entry.docType      = sel.value;
+        entry.autoDetected = false; // user explicitly chose — remove auto indicator
+      }
       updateAnalyzeBtn();
       updateCard(sel.dataset.id); // re-render to show/hide dose fields
       return;

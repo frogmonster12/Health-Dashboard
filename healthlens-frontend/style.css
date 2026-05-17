@@ -391,6 +391,21 @@ body.drag-active { user-select: none; }
   background: var(--surface);
 }
 
+/* Auto-detection badge + row wrapper */
+.doctype-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+.auto-badge {
+  flex-shrink: 0;
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--teal-glow);
+  color: var(--teal);
+  border: 1px solid rgba(20,184,166,.35);
+  white-space: nowrap;
+}
+
 /* Document type select */
 .doc-type-select {
   flex: 1;
