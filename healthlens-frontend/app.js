@@ -435,13 +435,8 @@ async function analyzeFile(id) {
   updateAnalyzeBtn();
 
   try {
-    // Route through Gemini 1.5 Flash when the user has provided a key;
-    // otherwise use the default Cloudflare Workers AI path via the Worker.
-    const result = state.geminiKey
-      ? await callGeminiForParse(state.geminiKey, entry.docType,
-          entry.text ?? `[Image file: ${entry.file.type}, ${entry.file.name}]`,
-          entry.file.name)
-      : await callWorker(entry);
+    // Worker is the sole parser.
+    const result = await callWorker(entry);
     if (!state.files.has(id)) return;
     setPhase(id, 'done', { result });
   } catch (err) {
@@ -1043,20 +1038,11 @@ function wireUploadView() {
     );
     if (!toAnalyze.length) return;
 
-    // Both paths run in parallel. _geminiCall handles 429s transparently with backoff.
-    // Gemini path is chunked in groups of 10 to stay safely under the 15 req/min
-    // free-tier limit on bulk historical uploads (>10 files).
+    // Worker is the sole parser — no rate-limit caveats. All files run in parallel.
     _analyzeBatchRunning = true;
     (async () => {
       try {
-        if (state.geminiKey) {
-          const CHUNK = 10;
-          for (let i = 0; i < toAnalyze.length; i += CHUNK) {
-            await Promise.allSettled(toAnalyze.slice(i, i + CHUNK).map(e => analyzeFile(e.id)));
-          }
-        } else {
-          await Promise.allSettled(toAnalyze.map(e => analyzeFile(e.id)));
-        }
+        await Promise.allSettled(toAnalyze.map(e => analyzeFile(e.id)));
       } finally {
         _analyzeBatchRunning = false;
       }
