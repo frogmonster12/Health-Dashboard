@@ -11,9 +11,9 @@ function isValidKeyFormat(key) {
   return typeof key === 'string' && key.trim().length >= 20;
 }
 
-// ── Core fetch ────────────────────────────────────────────────────────────────
+// ── Core fetch with 429 retry ─────────────────────────────────────────────────
 async function _geminiCall(apiKey, prompt, maxTokens = 4096) {
-  const res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(apiKey)}`, {
+  const _fetch = () => fetch(`${GEMINI_URL}?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -21,10 +21,32 @@ async function _geminiCall(apiKey, prompt, maxTokens = 4096) {
       generationConfig: { temperature: 0, maxOutputTokens: maxTokens },
     }),
   });
+
+  let res = await _fetch();
+
+  // On rate-limit, parse the suggested retry delay and wait exactly that long
+  if (res.status === 429) {
+    const body = await res.json().catch(() => ({}));
+    const msg  = body?.error?.message ?? '';
+    const secs = parseFloat(msg.match(/retry in (\d+\.?\d*)\s*s/i)?.[1] ?? '35');
+    const wait = Math.min(Math.ceil(secs * 1000) + 1000, 70_000); // cap at 70 s
+    await new Promise(r => setTimeout(r, wait));
+    res = await _fetch(); // one retry
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message ?? `Gemini API error ${res.status}`);
+    const msg = err?.error?.message ?? `Gemini API error ${res.status}`;
+    // Surface rate-limit errors with actionable guidance
+    if (res.status === 429 || /quota/i.test(msg)) {
+      throw new Error(
+        'Gemini rate limit reached. The free tier allows a limited number of requests per minute. ' +
+        'Please wait ~30 seconds and click Retry, or upload fewer files at once.'
+      );
+    }
+    throw new Error(msg);
   }
+
   const data = await res.json();
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 }

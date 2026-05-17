@@ -1035,7 +1035,14 @@ function wireUploadView() {
     const toAnalyze = [...state.files.values()].filter(
       e => e.phase === 'ready' && e.docType !== ''
     );
-    Promise.all(toAnalyze.map(e => analyzeFile(e.id)));
+    if (state.geminiKey) {
+      // Sequential when using Gemini — free tier has strict requests-per-minute
+      // limits and concurrent calls will hit the quota immediately.
+      (async () => { for (const e of toAnalyze) await analyzeFile(e.id); })();
+    } else {
+      // Parallel is fine for the Cloudflare Worker (no shared rate limit)
+      Promise.all(toAnalyze.map(e => analyzeFile(e.id)));
+    }
   });
 
   // Sample data button
