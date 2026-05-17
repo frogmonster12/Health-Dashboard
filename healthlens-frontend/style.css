@@ -1332,6 +1332,38 @@ body.drag-active { user-select: none; }
   line-height: 1.4;
 }
 
+/* ── Overview date-range selector ────────────────────────────────────────────── */
+.range-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.range-select, .range-date {
+  border: 1px solid var(--navy-border);
+  border-radius: var(--r);
+  background: var(--navy-mid);
+  color: #e2e8f0;
+  font: inherit;
+  font-size: .8125rem;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.range-select:focus, .range-date:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 2px var(--teal-glow);
+}
+.range-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.range-sep  { font-size: .8125rem; color: var(--text-muted); }
+.range-count { font-size: .8rem; color: var(--text-muted); font-style: italic; }
+
 /* ── Annotation notes in data tables ─────────────────────────────────────────── */
 .th-note { width: 28px; padding: 0 !important; }
 

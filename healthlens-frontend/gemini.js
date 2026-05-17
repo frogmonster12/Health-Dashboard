@@ -182,7 +182,7 @@ ${tabSections}`;
   };
 
   try {
-    const raw    = await _geminiCall(state.geminiKey, prompt, 2048, responseSchema);
+    const raw    = await _geminiCall(state.geminiKey, prompt, 4096, responseSchema);
     const parsed = JSON.parse(raw);
     for (const [key, value] of Object.entries(parsed)) {
       _updateTab(key, value);

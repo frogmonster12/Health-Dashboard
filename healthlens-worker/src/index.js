@@ -35,6 +35,39 @@ const REDACT_FIELDS = [
   "facilityName",
 ];
 
+// ── Pre-flight detection patterns ─────────────────────────────────────────────
+// A document passes pre-flight if it matches EITHER the unit-value pattern
+// OR at least one recognised marker name. The unit pattern alone missed CMP
+// panels that label electrolytes with mEq/L (now included) and other lab
+// reports where values appear without units in machine-readable text.
+const LAB_VALUE_RE = /\d+\.?\d*\s*(mg\/dL|g\/dL|mmol\/L|mEq\/L|U\/L|nmol\/L|%|mL\/min|K\/uL|mIU\/L|ng\/dL|pg\/mL|IU\/mL)/i;
+
+const MARKER_NAMES = [
+  // Metabolic / CMP
+  "Sodium","Potassium","Chloride","Bicarbonate","CO2","Glucose",
+  "BUN","Creatinine","Calcium","Magnesium","Phosphorus",
+  "Total Protein","Albumin","Globulin",
+  "AST","ALT","ALP","Alkaline Phosphatase","Bilirubin","eGFR",
+  // Lipid
+  "LDL","HDL","Cholesterol","Triglycerides","Lipoprotein","Apolipoprotein",
+  // Hormones
+  "Testosterone","Estradiol","SHBG","FSH","LH","Progesterone","DHEA",
+  // Thyroid
+  "TSH","T3","T4","Thyroxine","Thyroglobulin",
+  // CBC
+  "WBC","RBC","Hemoglobin","Hematocrit","Platelet","MCV","MCH","MCHC",
+  "Neutrophil","Lymphocyte","Monocyte","Eosinophil","Basophil",
+  // DEXA
+  "T-score","Z-score","BMD","Bone Density","Lean Mass","Fat Mass",
+  // CTCA / Cardiac
+  "CAC","Calcium Score","Agatston",
+];
+
+function _escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+const MARKER_NAME_RE = new RegExp(
+  "\\b(" + MARKER_NAMES.map(_escRe).join("|") + ")\\b", "i"
+);
+
 // ─── LOGGING ─────────────────────────────────────────────────────────────────
 // Stream live with: cd healthlens-worker && npx wrangler tail
 // Logs never contain document text or patient data — only metadata.
@@ -266,12 +299,12 @@ async function handleAnalyze(request, env, origin) {
   const truncated = textContent.slice(0, MAX_TEXT_CHARS);
   const wasTruncated = textContent.length > MAX_TEXT_CHARS;
 
-  // ── Pre-flight: reject documents that contain no recognizable lab values ──────
-  // This catches wrong-file uploads (photos, consent forms, invoices) before
-  // spending an AI call on them.
-  const LAB_VALUE_RE = /\d+\.?\d*\s*(mg\/dL|g\/dL|mmol\/L|U\/L|nmol\/L|%|mL\/min|K\/uL|mIU\/L|ng\/dL|pg\/mL|IU\/mL)/i;
-  if (!LAB_VALUE_RE.test(truncated)) {
-    log("analyze", "pre-flight failed — no lab values detected, skipping AI", { docType: documentType });
+  // ── Pre-flight: reject documents that contain no recognizable lab content ─────
+  // Passes if EITHER a numeric+unit pattern OR a recognised marker name is found.
+  // Using both checks prevents false rejections on PDFs where units are absent
+  // from the machine-readable text layer.
+  if (!LAB_VALUE_RE.test(truncated) && !MARKER_NAME_RE.test(truncated)) {
+    log("analyze", "pre-flight failed — no lab values or marker names detected, skipping AI", { docType: documentType });
     return jsonResponse({
       ok: true,
       data: {

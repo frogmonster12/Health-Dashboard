@@ -579,16 +579,73 @@ function insightHTML(tabId) {
   return '';
 }
 
+// ── Date-range filter helper ──────────────────────────────────────────────────
+// Returns the subset of panels that fall within the selected range.
+// Panels with null drawDate are excluded when any range is active,
+// included when range is 'all'.
+function filterPanelsByRange(panels, range, from, to) {
+  if (!range || range === 'all') return panels;
+
+  if (range === 'custom') {
+    if (!from && !to) return panels; // no bounds set yet — show all
+    return panels.filter(p => {
+      if (!p.drawDate) return false;
+      if (from && p.drawDate < from) return false;
+      if (to   && p.drawDate > to)   return false;
+      return true;
+    });
+  }
+
+  const months = { '12m': 12, '6m': 6, '3m': 3 }[range];
+  if (!months) return panels;
+  const d = new Date();
+  d.setMonth(d.getMonth() - months);
+  const cutoff = d.toISOString().slice(0, 10);
+  return panels.filter(p => p.drawDate && p.drawDate >= cutoff);
+}
+
 // ── Tab renderers ─────────────────────────────────────────────────────────────
 function renderOverviewTab(cards) {
+  // Flagged Markers: always uses the full, unfiltered card set
   const flagged = cards.filter(c => c.status !== 'NORMAL');
+
+  // All Markers: filtered by the active date range stored in _dash
+  const { allMarkersRange: range, rangeFrom, rangeTo, panels } = _dash;
+  const filteredPanels = filterPanelsByRange(panels, range, rangeFrom, rangeTo);
+  const allCards       = buildSummaryCards(filteredPanels);
+  const total          = panels.length;
+  const showing        = filteredPanels.length;
+  const countLabel     = range === 'all'
+    ? `${total} report${total !== 1 ? 's' : ''}`
+    : `Showing ${showing} of ${total} reports`;
+
+  const rangeOpt = (val, label) =>
+    `<option value="${val}"${range === val ? ' selected' : ''}>${label}</option>`;
+
   return `
 <div class="tab-pane">
   ${insightHTML('overview')}
   <h2 class="pane-title">Flagged Markers</h2>
   ${flagged.length ? summaryGridHTML(flagged, false) : '<p class="dash-empty">All markers within reference ranges.</p>'}
   <h2 class="pane-title" style="margin-top:36px">All Markers</h2>
-  ${summaryGridHTML(cards, false)}
+  <div class="range-row">
+    <select class="range-select" id="allMarkersRange">
+      ${rangeOpt('all',    'All time')}
+      ${rangeOpt('12m',    'Last 12 months')}
+      ${rangeOpt('6m',     'Last 6 months')}
+      ${rangeOpt('3m',     'Last 3 months')}
+      ${rangeOpt('custom', 'Custom range')}
+    </select>
+    <span class="range-custom" style="${range === 'custom' ? 'display:flex' : 'display:none'}">
+      <input type="date" id="rangeFrom" class="range-date" value="${esc(rangeFrom)}" />
+      <span class="range-sep">to</span>
+      <input type="date" id="rangeTo"   class="range-date" value="${esc(rangeTo)}"   />
+    </span>
+    <span class="range-count">${esc(countLabel)}</span>
+  </div>
+  ${allCards.length
+      ? summaryGridHTML(allCards, false)
+      : '<p class="dash-empty">No markers in this date range.</p>'}
 </div>`;
 }
 
@@ -1006,7 +1063,8 @@ function renderDashboard() {
 
   const cards = buildSummaryCards(panels);
   const tabs  = detectTabs(panels);
-  _dash = { panels, cards, tabs, activeTab: tabs[0]?.id ?? 'overview' };
+  _dash = { panels, cards, tabs, activeTab: tabs[0]?.id ?? 'overview',
+            allMarkersRange: 'all', rangeFrom: '', rangeTo: '' };
 
   // Collect patient info from the richest panel
   const infoPanel = panels.slice().reverse().find(p => p.patientName || p.facilityName) ?? panels[0];
@@ -1101,6 +1159,19 @@ function renderDashboard() {
     });
 
     reinitActiveCharts();
+  });
+
+  // Overview date-range selector — separate listener so the goal-input guard
+  // (which early-returns on non-goal changes) doesn't swallow these events.
+  document.getElementById('dashContent').addEventListener('change', (e) => {
+    if (e.target.id === 'allMarkersRange') {
+      _dash.allMarkersRange = e.target.value;
+      if (e.target.value !== 'custom') { _dash.rangeFrom = ''; _dash.rangeTo = ''; }
+      renderActiveTab();
+      return;
+    }
+    if (e.target.id === 'rangeFrom') { _dash.rangeFrom = e.target.value; renderActiveTab(); return; }
+    if (e.target.id === 'rangeTo')   { _dash.rangeTo   = e.target.value; renderActiveTab(); return; }
   });
 
   // Back button — clears state and returns to upload screen with transition

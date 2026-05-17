@@ -1,6 +1,6 @@
 # HealthLens — Project Context
 *For sharing with Claude or other AI assistants to resume work on this project.*
-*Last updated: 2026-05-17 (Worker-only parsing, single-call Gemini insights with responseSchema)*
+*Last updated: 2026-05-17 (Worker pre-flight marker-name fallback, Overview date-range filter, Gemini 4096 token budget)*
 
 ---
 
@@ -73,7 +73,7 @@ Deployed at `https://healthlens-worker.jhs-amarillo.workers.dev`
 | `POST /redact` | Pure string swap — replaces PII fields with `[REDACTED]`, no AI |
 | `POST /log` | Receives frontend JS errors, logs via `console.log` (view with `npx wrangler tail`) |
 
-**Pre-flight check:** Before calling AI, the Worker tests `textContent` against `/\d+\.?\d*\s*(mg\/dL|g\/dL|...)/i`. If no lab values detected, returns immediately with `extractionWarning` and empty `markers[]`.
+**Pre-flight check:** Before calling AI, the Worker tests `textContent` against two patterns. `LAB_VALUE_RE` matches numeric values followed by common lab units (mg/dL, mEq/L, U/L, nmol/L, %, etc.). `MARKER_NAME_RE` matches 50+ recognized marker names across all panel types (Sodium, Creatinine, Testosterone, TSH, WBC, T-score, CAC, …). A document passes if **either** pattern matches. If neither matches, returns immediately with `extractionWarning` and empty `markers[]`.
 
 **ExtractedDocument schema:**
 ```javascript
@@ -120,7 +120,7 @@ const userGoals = {};     // normName(markerName) → goal value (separate from 
 
 | Tab | Appears when |
 |---|---|
-| Overview | Always |
+| Overview | Always. Flagged Markers uses the full unfiltered set. All Markers has a date-range selector (All time / Last 12 months / Last 6 months / Last 3 months / Custom). Session-only state in `_dash.allMarkersRange`. |
 | Renal | Any renal marker detected (creatinine, eGFR, BUN, etc.) |
 | Lipid | Any lipid marker detected (LDL, HDL, cholesterol, etc.) |
 | Hepatic | Any hepatic marker detected (AST, ALT, Alk Phos, etc.) |
