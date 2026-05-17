@@ -3,10 +3,12 @@
 // The key is never sent to the Cloudflare Worker, never stored, and is cleared on refresh.
 // Load order: after dashboard.js (uses RENAL_SET etc. as globals), before app.js.
 
-// gemini-1.5-flash is used because it has a free tier (15 RPM, 1500 req/day).
-// gemini-2.0-flash requires billing to be enabled and has limit: 0 on the free tier.
+// gemini-flash-latest is Google's auto-updating alias for the current stable Flash model.
+// Using the alias instead of a pinned version (e.g. gemini-1.5-flash, gemini-2.0-flash)
+// means the app won't break when Google retires a specific model generation.
+// Base path v1beta is correct for this alias as of 2026.
 const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
 
 // ── Key validation (format only — real validation happens on first API call) ───
 function isValidKeyFormat(key) {
@@ -38,15 +40,26 @@ async function _geminiCall(apiKey, prompt, maxTokens = 4096) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    const msg = err?.error?.message ?? `Gemini API error ${res.status}`;
-    // Surface rate-limit errors with actionable guidance
-    if (res.status === 429 || /quota/i.test(msg)) {
+    const msg = err?.error?.message ?? '';
+
+    if (res.status === 404 && /is not found for api version/i.test(msg)) {
       throw new Error(
-        'Gemini rate limit reached. The free tier allows a limited number of requests per minute. ' +
-        'Please wait ~30 seconds and click Retry, or upload fewer files at once.'
+        'The configured Gemini model is no longer available. Google may have deprecated it. ' +
+        'Check gemini.js for the model name.'
       );
     }
-    throw new Error(msg);
+    if (res.status === 429 || /quota/i.test(msg)) {
+      throw new Error(
+        'Gemini API rate limit hit. Free tier is 15 requests/minute and 250/day. ' +
+        'Wait a minute and retry, or remove the API key to fall back to the default parser.'
+      );
+    }
+    if (res.status === 400 && /API_KEY_INVALID/i.test(msg)) {
+      throw new Error(
+        'Gemini API key is invalid or revoked. Check the key in Google AI Studio.'
+      );
+    }
+    throw new Error(`Gemini API error: ${msg || res.status}`);
   }
 
   const data = await res.json();

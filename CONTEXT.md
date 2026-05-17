@@ -1,6 +1,6 @@
 # HealthLens — Project Context
 *For sharing with Claude or other AI assistants to resume work on this project.*
-*Last updated: 2026-05-16*
+*Last updated: 2026-05-17*
 
 ---
 
@@ -20,7 +20,7 @@ HealthLens is a personal health document dashboard. Users drag-and-drop lab repo
 | Frontend | Vanilla HTML + CSS + JS, hosted on Cloudflare Pages |
 | Backend | Cloudflare Worker (Wrangler 4.x) |
 | Default AI parsing | Workers AI — `@cf/meta/llama-3.1-8b-instruct` |
-| Optional AI parsing | Gemini 1.5 Flash (direct browser → Gemini API, user's own key) |
+| Optional AI parsing | Gemini Flash (via `gemini-flash-latest` auto-updating alias, direct browser → Gemini API, user's own key) |
 | Charts | Chart.js 4.4.1 (cdnjs) |
 | PDF export | jsPDF 2.5.1 + html2canvas 1.4.1 (cdnjs) |
 | PDF extraction | pdf.js 3.11.174 (cdnjs) |
@@ -229,3 +229,4 @@ Live Worker logs: `cd healthlens-worker && npx wrangler tail`
 2. **AI marker name variation** — Labs use different names for the same marker (e.g. "TESTOSTERONE, TOTAL, MALES (ADULT), IA" vs "Total Testosterone"). `getMarkerReadings` uses partial matching which handles most cases.
 3. **Scanned PDFs** — pdf.js can't extract text from image-based PDFs. Clear error shown, no OCR.
 4. **Gemini insights in PDF** — Insights are session-only. If the page is refreshed between analysis and export, `state.insights` is empty and no insight blocks appear in the PDF.
+5. **Gemini model deprecations** — Google retired 1.5 Flash in early 2026 and 2.0 Flash shuts down June 1, 2026. We use the `gemini-flash-latest` alias to track the current stable model automatically. If parsing starts failing with a 404, check Google's model availability page first before touching any code.
