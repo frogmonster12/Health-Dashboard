@@ -87,6 +87,7 @@ const state = {
   geminiKey: '',          // user-supplied Gemini API key — never stored, never sent to Worker
   insightsEnabled: false, // true when key present AND checkbox checked
   insights: {},           // tabId → AI-generated insight string; cleared on each new analysis
+  insightsAreSample: false, // true when insights came from SAMPLE_INSIGHTS, not Gemini
 };
 
 // Re-entry guard so a double-tap or rapid back+forward can't launch two batches at once
@@ -105,6 +106,53 @@ let _analyzeBatchRunning = false;
 //   result:      object | null,
 //   showManual:  boolean,         — true when manual-entry form is open
 // }
+
+// ── Sample insights ───────────────────────────────────────────────────────────
+// Canned AI-style text shown when "Include AI preview" is checked alongside
+// the sample data button. Keyed by the tab ids detectTabs produces for
+// SAMPLE_PANELS (overview + renal + lipid + hepatic + imaging).
+// Values reference specific numbers from SAMPLE_PANELS so the preview reads
+// as real analysis rather than generic filler.
+const SAMPLE_INSIGHTS = {
+  overview:
+    'Looking across three years of health reports, the trajectory here is genuinely encouraging. ' +
+    'Your lipid panel transformed significantly — LDL dropped from 168 mg/dL all the way down to 95, ' +
+    'crossing into the optimal range for the first time, and HDL climbed from a low 38 up to a healthy 52. ' +
+    'Blood sugar normalized after starting slightly elevated, and liver enzymes followed the same positive trend. ' +
+    'These kinds of changes across multiple markers usually reflect real lifestyle improvements, and they\'re worth celebrating.\n\n' +
+    'One area worth a proactive conversation with your cardiologist is the CAC score of 142 from your cardiac CT — ' +
+    'that puts you in the moderate coronary calcium category. The good news is your heart pump function (LVEF 62%) ' +
+    'is completely normal and all coronary narrowings are non-obstructive. ' +
+    'This is exactly the kind of finding that informs a preventive strategy rather than signaling an emergency. ' +
+    'Overall, this is a story of meaningful improvement with one eye kept on the cardiovascular picture going forward.',
+
+  renal:
+    'Your kidney function looks stable and healthy across all three draws. ' +
+    'eGFR has been trending upward from 82 to 90 mL/min, which is a great sign, ' +
+    'and creatinine has stayed steady around 0.9 mg/dL — comfortably within the normal range throughout. ' +
+    'BUN has been consistently normal and declining slightly. Nothing here raises any flags.',
+
+  lipid:
+    'This is one of the most encouraging trends in your reports. ' +
+    'LDL fell from 168 mg/dL in 2023 all the way to 95 by late 2025, dropping below 100 for the first time. ' +
+    'HDL climbed from a low 38 into the healthy 50s, and triglycerides dropped from 195 down to 128 — now squarely in normal range. ' +
+    'One value still worth watching is Lp(a) at 76 nmol/L — it remains just above the reference range and is ' +
+    'largely genetic rather than lifestyle-driven, so it\'s worth an ongoing conversation with your doctor.',
+
+  hepatic:
+    'Your liver markers have improved significantly over the three-year period. ' +
+    'AST dropped from a mildly elevated 45 down to 32, and ALT followed from 52 down to 38 — both now well within normal range. ' +
+    'Alkaline phosphatase and bilirubin have been consistently normal throughout. ' +
+    'The improving trend here likely reflects the same changes that drove your lipid improvements.',
+
+  imaging:
+    'Your cardiac CT shows a CAC score of 142, which places you in the moderate coronary artery calcium category — ' +
+    'meaning some calcified plaque is present in the coronary arteries. ' +
+    'The good news is that all three coronary arteries show only mild non-obstructive narrowing ' +
+    '(LAD 30%, LCx 10%, RCA 15%), and your heart pump function at 62% LVEF is completely normal. ' +
+    'This is typically the kind of finding that leads to a preventive strategy discussion with your cardiologist ' +
+    'rather than any immediate procedure — keep it on your radar at your next cardiology visit.',
+};
 
 // ── Sample data ───────────────────────────────────────────────────────────────
 // Pre-built panel objects that bypass the Worker entirely, used for the demo.
@@ -862,6 +910,16 @@ function loadSampleData() {
       result: panel, showManual: false,
     });
   }
+
+  const withPreview = document.getElementById('samplePreviewCheck')?.checked ?? false;
+  if (withPreview) {
+    state.insights          = { ...SAMPLE_INSIGHTS };
+    state.insightsAreSample = true;
+  } else {
+    state.insights          = {};
+    state.insightsAreSample = false;
+  }
+
   switchView(renderDashboard);
 }
 
@@ -902,6 +960,10 @@ function renderUploadView() {
       Analysis runs privately in your browser. Nothing is ever stored.
     </p>
     <button class="sample-btn" id="sampleBtn" type="button">Try with sample data →</button>
+    <label class="sample-preview-label">
+      <input type="checkbox" id="samplePreviewCheck" />
+      <span data-tip="Shows what AI insights look like without needing a Gemini key">Include AI preview</span>
+    </label>
   </div>
 
   <details class="api-settings" id="apiSettings">
@@ -1032,7 +1094,8 @@ function wireUploadView() {
 
     if (_analyzeBatchRunning) return; // prevent double-tap during an active batch
 
-    state.insights = {};
+    state.insights          = {};
+    state.insightsAreSample = false;
     const toAnalyze = [...state.files.values()].filter(
       e => e.phase === 'ready' && e.docType !== ''
     );

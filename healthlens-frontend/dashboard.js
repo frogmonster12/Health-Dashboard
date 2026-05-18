@@ -144,7 +144,7 @@ function getPanels() {
 function matchesSet(normalizedName, nameSet) {
   if (nameSet.has(normalizedName)) return true;
   for (const s of nameSet) {
-    if (normalizedName.includes(s) || s.includes(normalizedName)) return true;
+    if (normalizedName.includes(s)) return true;
   }
   return false;
 }
@@ -179,7 +179,7 @@ function getMarkerReadings(panels, nameSet) {
 // Find first marker series that partially matches any of the given names
 function findSeries(markerMap, ...names) {
   for (const [key, val] of markerMap) {
-    if (names.some(n => key.includes(n) || n.includes(key))) return val;
+    if (names.some(n => key.includes(n))) return val;
   }
   return null;
 }
@@ -562,11 +562,16 @@ function _partialNotice(panels, nameSet) {
 function insightHTML(tabId) {
   const text    = state.insights?.[tabId];
   if (text) {
-    const isError = text.startsWith('⚠');
+    const isError    = text.startsWith('⚠');
+    const isSample   = !isError && !!state.insightsAreSample;
+    const disclaimer = isSample
+      ? 'Sample preview — add your Gemini API key to get insights based on your actual reports.'
+      : 'This is not medical advice. Consult your healthcare provider.';
     return `<div class="insight-card${isError ? ' insight-error' : ''}">
   <div class="insight-header">
+    ${isSample ? '<span class="insight-preview-badge">Preview</span>' : ''}
     <span class="insight-label">✦ AI-generated analysis</span>
-    <span class="insight-disclaimer">This is not medical advice. Consult your healthcare provider.</span>
+    <span class="insight-disclaimer">${esc(disclaimer)}</span>
   </div>
   <p class="insight-text">${esc(text)}</p>
 </div>`;
@@ -1177,13 +1182,18 @@ function renderDashboard() {
   document.getElementById('backBtn').addEventListener('click', () => {
     destroyAllCharts();
     state.files.clear();
+    state.insights          = {};
+    state.insightsAreSample = false;
     switchView(renderUploadView);
   });
 
   // Kick off AI insights generation concurrently after dashboard renders.
   // generateInsights() is defined in gemini.js and re-renders the active tab
   // as each insight arrives — no blocking, loading spinners show in the interim.
-  if (state.geminiKey && state.insightsEnabled && typeof generateInsights === 'function') {
+  // Skip real Gemini call when canned sample insights are already loaded —
+  // they shouldn't be overwritten even if the user has a key present.
+  if (state.geminiKey && state.insightsEnabled && !state.insightsAreSample
+      && typeof generateInsights === 'function') {
     generateInsights(panels);
   }
 }

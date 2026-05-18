@@ -1298,6 +1298,38 @@ body.drag-active { user-select: none; }
   white-space: pre-wrap;
 }
 
+/* ── "Include AI preview" checkbox next to sample-data button ───────────────── */
+.sample-preview-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+.sample-preview-label input[type="checkbox"] {
+  accent-color: var(--teal);
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
+
+/* ── Insight preview badge (shown when insights are sample/canned) ────────────── */
+.insight-preview-badge {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--amber);
+  background: rgba(245,158,11,.1);
+  border: 1px solid rgba(245,158,11,.3);
+  border-radius: 4px;
+  padding: 2px 7px;
+  flex-shrink: 0;
+}
+
 /* ── "Load sample data" button ───────────────────────────────────────────────── */
 .sample-btn {
   margin-top: 16px;
