@@ -968,7 +968,7 @@ function renderUploadView() {
 
   <details class="api-settings" id="apiSettings">
     <summary class="api-settings-toggle">
-      ⚙ Advanced — Gemini API Key
+      ⚙ Advanced — Bring Your Own Gemini API Key
     </summary>
     <div class="api-settings-body">
       <div class="api-key-header">
