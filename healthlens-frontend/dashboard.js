@@ -613,11 +613,10 @@ function renderOverviewTab(cards) {
   const { allMarkersRange: range, rangeFrom, rangeTo, panels } = _dash;
   const filteredPanels = filterPanelsByRange(panels, range, rangeFrom, rangeTo);
   const allCards       = buildSummaryCards(filteredPanels);
-  const total          = panels.length;
-  const showing        = filteredPanels.length;
-  const countLabel     = range === 'all'
-    ? `${total} report${total !== 1 ? 's' : ''}`
-    : `Showing ${showing} of ${total} reports`;
+  const totalCards  = buildSummaryCards(panels).length;
+  const countLabel  = range === 'all'
+    ? `${totalCards} marker${totalCards !== 1 ? 's' : ''}`
+    : `Showing ${allCards.length} of ${totalCards} marker${totalCards !== 1 ? 's' : ''}`;
 
   const rangeOpt = (val, label) =>
     `<option value="${val}"${range === val ? ' selected' : ''}>${label}</option>`;

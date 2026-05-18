@@ -46,7 +46,7 @@ const MARKER_NAMES = [
   // Metabolic / CMP
   "Sodium","Potassium","Chloride","Bicarbonate","CO2","Glucose",
   "BUN","Creatinine","Calcium","Magnesium","Phosphorus",
-  "Total Protein","Albumin","Globulin",
+  "Total Protein","Albumin",
   "AST","ALT","ALP","Alkaline Phosphatase","Bilirubin","eGFR",
   // Lipid
   "LDL","HDL","Cholesterol","Triglycerides","Lipoprotein","Apolipoprotein",
