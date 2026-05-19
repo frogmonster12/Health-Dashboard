@@ -5,6 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Upload health documents for private, in-browser analysis. No data is ever stored." />
   <title>HealthLens</title>
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdnjs.cloudflare.com;
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: blob:;
+    connect-src 'self' https://healthlens-worker.jhs-amarillo.workers.dev https://generativelanguage.googleapis.com https://cdnjs.cloudflare.com;
+    worker-src 'self' blob: https://cdnjs.cloudflare.com;
+    font-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    frame-ancestors 'none';
+  ">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -53,19 +65,23 @@
     and update both URLs to the latest 3.x version number.
   -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
+          integrity="sha512-q+4liFwdPC/bNdhUpZx6aXDx/h77yEQtn4I1slHydcbZK34nLaR3cAeYSJshoxIOq3mjEf7xJE8YWIUHMn+oCQ=="
           crossorigin="anonymous"
           referrerpolicy="no-referrer"></script>
 
   <!-- Chart.js 4.4.1 — pinned on cdnjs -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+          integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw=="
           crossorigin="anonymous"
           referrerpolicy="no-referrer"></script>
 
   <!-- jsPDF 2.5.1 + html2canvas 1.4.1 — pinned on cdnjs -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+          integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA=="
           crossorigin="anonymous"
           referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
+          integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA=="
           crossorigin="anonymous"
           referrerpolicy="no-referrer"></script>
 

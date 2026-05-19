@@ -1,5 +1,7 @@
 const ALLOWED_ORIGINS = [
   "https://health-dashboard.jhs-amarillo.workers.dev",
+  // Add custom production domain here when ready, e.g.:
+  // "https://healthlens.example.com",
 ];
 
 // During local dev, also allow localhost
@@ -448,6 +450,12 @@ export default {
     // Preflight
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders(origin) });
+    }
+
+    // Reject browser requests from disallowed origins.
+    // Absent Origin header (curl, server-to-server) falls through unchanged.
+    if (origin && !getAllowedOrigin(origin)) {
+      return errorResponse("Forbidden.", 403, origin);
     }
 
     // Only POST allowed on API routes
