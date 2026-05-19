@@ -29,9 +29,9 @@ async function _geminiCall(apiKey, prompt, maxTokens = 4096, responseSchema = nu
     reqBody.generationConfig.responseSchema   = responseSchema;
   }
 
-  const _fetch = () => fetch(`${GEMINI_URL}?key=${encodeURIComponent(apiKey)}`, {
+  const _fetch = () => fetch(GEMINI_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify(reqBody),
   });
 

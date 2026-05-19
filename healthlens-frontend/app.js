@@ -25,6 +25,8 @@ const DOC_TYPES = [
   { value: 'other',       label: 'Other' },
 ];
 
+const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB — prevents tab lock-up on huge files
+
 const ACCEPTED_MIME = new Set([
   'application/pdf',
   'image/jpeg',
@@ -328,7 +330,7 @@ const MANUAL_FIELDS = {
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function uid() {
@@ -529,6 +531,10 @@ function addFiles(fileList) {
   for (const file of fileList) {
     if (!isAccepted(file)) {
       showDropError(`"${file.name}" — only PDF and image files are supported.`);
+      continue;
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      showDropError(`"${file.name}" is too large (max 50 MB).`);
       continue;
     }
     if (existing.has(dedupKey(file))) {

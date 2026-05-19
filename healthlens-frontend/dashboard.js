@@ -223,7 +223,7 @@ function getDateRange(panels) {
 
 // ── Privacy helpers ───────────────────────────────────────────────────────────
 function pText(val) {
-  return state.privacyMode ? '[REDACTED]' : (val ?? '—');
+  return state.privacyMode ? '[REDACTED]' : esc(val ?? '—');
 }
 
 function privacySpan(val) {
@@ -239,7 +239,7 @@ function refreshDashboardPrivacy() {
 
 // ── HTML fragments ────────────────────────────────────────────────────────────
 function esc(s) { // local copy — dashboard.js loads after app.js which also defines it
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function flagBadgeHTML(status) {
@@ -255,14 +255,14 @@ function summaryCardHTML(card) {
     : card.refLow  != null ? `> ${card.refLow}` : '—';
   return `
 <div class="sc sc-${card.status.toLowerCase()} sc-sev-${card.severity}" role="article"
-     data-marker-key="${normName(card.name)}">
+     data-marker-key="${esc(normName(card.name))}">
   <div class="sc-name">${esc(card.name)}</div>
-  <div class="sc-value">${card.value} <span class="sc-unit">${esc(card.unit)}</span></div>
+  <div class="sc-value">${esc(card.value)} <span class="sc-unit">${esc(card.unit)}</span></div>
   <div class="sc-ref">Ref: ${esc(refText)}</div>
   <div class="sc-goal-row">
     <span class="sc-goal-label">Goal</span>
     <input type="number" step="any" class="sc-goal-input"
-           data-marker-goal="${normName(card.name)}"
+           data-marker-goal="${esc(normName(card.name))}"
            value="${userGoals?.[normName(card.name)] ?? ''}"
            placeholder="—" />
     ${card.unit ? `<span class="sc-goal-unit">${esc(card.unit)}</span>` : ''}
@@ -308,7 +308,7 @@ function dataTableHTML(markerMap) {
           ${esc(r.name)}
           ${note ? `<span class="ann-text">${esc(note)}</span>` : ''}
         </td>
-        <td class="cell-val">${r.value}</td>
+        <td class="cell-val">${esc(r.value)}</td>
         <td>${esc(r.unit || (normName(r.name) === 'cac score' ? 'Agatston' : '—'))}</td>
         <td>${esc(r.refText)}</td>
         <td>${flagBadgeHTML(r.status)}</td>
@@ -1012,7 +1012,7 @@ function buildCardDetail(markerKey) {
     const fc = status === 'HIGH' ? 'flag-h' : status === 'LOW' ? 'flag-l' : 'flag-n';
     return `<tr>
       <td>${esc(r.date ?? '—')}</td>
-      <td class="sc-dt-val">${r.value}<span class="sc-dt-unit">${series.unit ? ' ' + esc(series.unit) : ''}</span></td>
+      <td class="sc-dt-val">${esc(r.value)}<span class="sc-dt-unit">${series.unit ? ' ' + esc(series.unit) : ''}</span></td>
       <td><span class="flag-badge ${fc}">${status}</span></td>
     </tr>`;
   }).join('');

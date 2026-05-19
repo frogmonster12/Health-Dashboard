@@ -556,17 +556,17 @@ function _plainPanels() {
     .sort((a, b) => !a.drawDate ? 1 : !b.drawDate ? -1 : a.drawDate.localeCompare(b.drawDate));
 }
 
+// NOTE: the Worker /redact route is now unused and can be removed in a future cleanup.
+// Redaction is pure client-side: no PII ever leaves the browser for this operation.
 async function _redactedPanels() {
-  return Promise.all(_plainPanels().map(async p => {
-    try {
-      const r = await fetch(`${WORKER_URL}/redact`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(p),
-      });
-      const body = await r.json();
-      return body.ok && body.data ? body.data : p;
-    } catch { return p; }
-  }));
+  const PII = ['patientName', 'dob', 'address', 'physicianName', 'facilityName'];
+  return _plainPanels().map(p => {
+    const copy = { ...p };
+    for (const field of PII) {
+      if (copy[field] != null) copy[field] = '[REDACTED]';
+    }
+    return copy;
+  });
 }
 
 function _dateRange(panels) {
